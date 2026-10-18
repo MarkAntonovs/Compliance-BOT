@@ -1,0 +1,11 @@
+node_modules/
+.next/
+out/
+*.log
+.DS_Store
+# API keys and local settings — never commit
+data/settings.local.json
+.env
+.env.local
+next-env.d.ts
+*.tsbuildinfo

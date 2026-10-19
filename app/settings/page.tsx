@@ -67,30 +67,7 @@ export default function SettingsPage() {
     load();
   }
 
-  return (
-    <main className="wrap">
-      <div className="pagehead">
-        <div>
-          <h1>Настройки и API-ключи</h1>
-          <p className="sub">На своём компьютере ключи хранятся в файле <code>data/settings.local.json</code>, в GitHub он не попадает. Список моделей хранится в <code>data/models.json</code> и попадает в GitHub, чтобы сайт на Vercel использовал те же модели.</p>
-        </div>
-      </div>
-      {server ? (
-        <div className="warnbox" style={{ marginBottom: 16 }}>
-          Это сайт на сервере (Vercel): здесь ничего нельзя сохранить. Ключи задаются в Vercel → Project → Settings → Environment Variables
-          (ANTHROPIC_API_KEY, OPENAI_API_KEY, XAI_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY), модели — через файл data/models.json в GitHub.
-          Кнопка «Проверить» работает.
-        </div>
-      ) : null}
-
-      <div className="panel">
-        <h2>1. API-ключи провайдеров</h2>
-        <p className="note" style={{ marginTop: -6 }}>Достаточно одного ключа OpenRouter: через него доступны Claude, GPT, Grok, Gemini и сотни других моделей. Прямые ключи нужны, если хотите платить провайдеру напрямую.</p>
-        <div className="tablewrap">
-          <table>
-            <thead><tr><th>Провайдер</th><th>Ключ</th><th>Новый ключ</th><th>Проверка</th></tr></thead>
-            <tbody>
-              {providers.map(p => {
+  const keyRow = (p: ProviderInfo) => {
                 const c = check[p.id];
                 return (
                   <tr key={p.id}>
@@ -109,15 +86,49 @@ export default function SettingsPage() {
                     </td>
                   </tr>
                 );
-              })}
+              };
+
+  return (
+    <main className="wrap">
+      <div className="pagehead">
+        <div>
+          <h1>Настройки и API-ключи</h1>
+          <p className="sub">На своём компьютере ключи хранятся в файле <code>data/settings.local.json</code>, в GitHub он не попадает. Список моделей хранится в <code>data/models.json</code> и попадает в GitHub, чтобы сайт на Vercel использовал те же модели.</p>
+        </div>
+      </div>
+      {server ? (
+        <div className="warnbox" style={{ marginBottom: 16 }}>
+          Это сайт на сервере (Vercel): здесь ничего нельзя сохранить. Ключи задаются в Vercel → Project → Settings → Environment Variables
+          (ANTHROPIC_API_KEY, OPENAI_API_KEY, XAI_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY), модели — через файл data/models.json в GitHub.
+          Кнопка «Проверить» работает.
+        </div>
+      ) : null}
+
+      <div className="panel">
+        <h2>1. Ключ Claude (Anthropic)</h2>
+        <p className="note" style={{ marginTop: -6 }}>Продукт работает на Claude. Ключ создаётся на console.anthropic.com; там же пополняется баланс и ставится лимит расходов.</p>
+        <div className="tablewrap">
+          <table>
+            <thead><tr><th>Провайдер</th><th>Ключ</th><th>Новый ключ</th><th>Проверка</th></tr></thead>
+            <tbody>
+              {providers.filter(p => p.id === "anthropic").map(keyRow)}
             </tbody>
           </table>
         </div>
+        <details style={{ marginTop: 14 }}>
+          <summary className="note">Другие провайдеры — для сравнения моделей, сейчас не нужны</summary>
+          <div className="tablewrap" style={{ marginTop: 10 }}>
+            <table>
+              <thead><tr><th>Провайдер</th><th>Ключ</th><th>Новый ключ</th><th>Проверка</th></tr></thead>
+              <tbody>{providers.filter(p => p.id !== "anthropic").map(keyRow)}</tbody>
+            </table>
+          </div>
+        </details>
       </div>
 
       <div className="panel">
-        <h2>2. Модели для разбора и тестов</h2>
-        <p className="note" style={{ marginTop: -6 }}>Добавьте модели, которые хотите сравнивать. Цена — в долларах за 1 млн токенов, по ней считается стоимость. Для OpenRouter цена подставляется сама; для остальных возьмите её на странице цен провайдера.</p>
+        <h2>2. Модель продукта</h2>
+        <p className="note" style={{ marginTop: -6 }}>Нажмите «+ Anthropic», выберите модель Claude из списка (появится после «Проверить» ключа) и укажите цену из прайса Anthropic — в долларах за 1 млн токенов, по ней считается стоимость разбора. «Демо-заглушка» работает без ключа, для проверки интерфейса.</p>
         <div className="actions" style={{ marginBottom: 12 }}>
           {allProviders.map(p => <button key={p.id} type="button" className="btn ghost small" onClick={() => addModel(p.id)}>+ {p.name.split(" (")[0]}</button>)}
         </div>
@@ -133,7 +144,7 @@ export default function SettingsPage() {
                     <td style={{ minWidth: 220 }}>
                       <input type="text" className="mono" list={"list-" + m.provider} placeholder="выберите или впишите id" value={m.model} onChange={e => setModel(m.id, { model: e.target.value })} aria-label="Модель" />
                     </td>
-                    <td style={{ minWidth: 160 }}><input type="text" value={m.label} placeholder={m.model || "например, GPT дешёвый"} onChange={e => setModel(m.id, { label: e.target.value })} aria-label="Название" /></td>
+                    <td style={{ minWidth: 160 }}><input type="text" value={m.label} placeholder={m.model || "например, Claude основной"} onChange={e => setModel(m.id, { label: e.target.value })} aria-label="Название" /></td>
                     <td className="num" style={{ width: 110 }}><input type="number" step="0.01" min="0" value={m.priceIn} onChange={e => setModel(m.id, { priceIn: Number(e.target.value) })} aria-label="Цена вход" /></td>
                     <td className="num" style={{ width: 110 }}><input type="number" step="0.01" min="0" value={m.priceOut} onChange={e => setModel(m.id, { priceOut: Number(e.target.value) })} aria-label="Цена выход" /></td>
                     <td><button type="button" className="btn small danger" onClick={() => setModels(ms => ms.filter(x => x.id !== m.id))}>×</button></td>

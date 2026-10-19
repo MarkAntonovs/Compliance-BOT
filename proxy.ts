@@ -7,7 +7,7 @@ import type { NextRequest } from "next/server";
 // - On a server the admin parts (Lab, Settings) need ADMIN_PASSWORD. Without it they are closed.
 // Passwords are set in Vercel → Project → Settings → Environment Variables.
 
-const ADMIN_PATHS = ["/lab", "/settings", "/api/settings", "/api/models", "/api/runs"];
+const ADMIN_PATHS = ["/quality", "/settings", "/api/settings", "/api/models", "/api/runs"];
 const isServer = () => !!process.env.VERCEL || process.env.DEPLOYED === "1";
 
 function askPassword(realm: string) {

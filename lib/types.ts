@@ -61,6 +61,7 @@ export type AnalyzeResult = {
   tokensOut: number;
   costUsd: number;
   latencyMs: number;
+  promptVersion?: string;
 };
 
 export type TestCase = {
@@ -78,12 +79,21 @@ export type TestCase = {
   [k: string]: unknown;
 };
 
-export type RunCell = AnalyzeResult & { caseId: string; score?: number | null; note?: string };
+export type RubricItem = { id: string; label: string; hint?: string };
+
+// One answer in a quality run + the reviewer's grading.
+export type RunCell = AnalyzeResult & {
+  caseId: string;
+  score?: number | null;                 // 1–5 overall
+  checks?: Record<string, boolean>;      // rubric id → passed / failed (absent = not graded)
+  note?: string;
+};
 
 export type Run = {
   id: string;
   createdAt: string;
   name: string;
+  promptVersion?: string;
   caseIds: string[];
   models: { id: string; label: string; provider: ProviderId; model: string }[];
   cells: RunCell[];

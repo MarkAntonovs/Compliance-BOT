@@ -107,12 +107,12 @@ export default function DecoderPage() {
             <label htmlFor="ctx">{t("l_ctx")}</label>
             <textarea id="ctx" style={{ minHeight: 90 }} placeholder={t("ctx_ph")} value={context} onChange={e => setContext(e.target.value)} />
           </div>
-          <div className="field">
+          {models && models.length > 1 ? <div className="field">
             <label htmlFor="model">{t("l_model")}</label>
             <select id="model" value={modelId} onChange={e => setModelId(e.target.value)} disabled={!models?.length}>
               {(models || []).map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
-          </div>
+          </div> : null}
           <div className="actions">
             <button className="btn" type="submit" disabled={busy || !modelId || !request.trim()}>{t("b_go")}</button>
           </div>

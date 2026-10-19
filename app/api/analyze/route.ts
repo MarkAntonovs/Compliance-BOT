@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { onServer, readSettings } from "@/lib/settings";
-import { buildPrompt, parseAnalysis } from "@/lib/prompt";
+import { buildPrompt, parseAnalysis, PROMPT_VERSION } from "@/lib/prompt";
 import { callModel } from "@/lib/providers";
 import type { AnalyzeInput, AnalyzeResult } from "@/lib/types";
 
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   if (!m) return NextResponse.json({ ok: false, error: "Модель не найдена в Настройках." }, { status: 400 });
   if (!input.request?.trim()) return NextResponse.json({ ok: false, error: "Пустой запрос банка." }, { status: 400 });
 
-  const base: AnalyzeResult = { ok: false, modelId: m.id, label: m.label || m.model, provider: m.provider, model: m.model, tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0 };
+  const base: AnalyzeResult = { ok: false, modelId: m.id, label: m.label || m.model, provider: m.provider, model: m.model, tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0, promptVersion: PROMPT_VERSION };
   const t0 = Date.now();
   try {
     const r = await callModel(m.provider, s.keys[m.provider] || "", m.model, buildPrompt(input));

@@ -23,7 +23,11 @@ export async function GET() {
 export async function POST(req: Request) {
   const run = (await req.json()) as Run;
   if (!/^[\w-]+$/.test(run.id)) return NextResponse.json({ ok: false, error: "bad id" }, { status: 400 });
-  await fs.mkdir(DIR, { recursive: true });
-  await fs.writeFile(path.join(DIR, run.id + ".json"), JSON.stringify(run, null, 1), "utf8");
-  return NextResponse.json({ ok: true });
+  try {
+    await fs.mkdir(DIR, { recursive: true });
+    await fs.writeFile(path.join(DIR, run.id + ".json"), JSON.stringify(run, null, 1), "utf8");
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Не удалось сохранить прогон. На сервере (Vercel) файлы не сохраняются — запускайте лабораторию локально." }, { status: 500 });
+  }
 }

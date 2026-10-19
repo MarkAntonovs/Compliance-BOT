@@ -3,14 +3,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import ResultView from "@/components/ResultView";
 import { tr } from "@/lib/i18n";
-import type { AnalyzeResult, ClientType, Lang, ModelEntry, TestCase } from "@/lib/types";
+import type { AnalyzeResult, ClientType, Lang, TestCase } from "@/lib/types";
+
+type PublicModel = { id: string; label: string; provider: string };
 
 const SAMPLE_IDS = ["S01", "S07", "S16", "S03", "S29"];
 
 export default function DecoderPage() {
   const [lang, setLang] = useState<Lang>("ru");
   const t = tr(lang);
-  const [models, setModels] = useState<ModelEntry[] | null>(null);
+  const [models, setModels] = useState<PublicModel[] | null>(null);
   const [modelId, setModelId] = useState("");
   const [samples, setSamples] = useState<TestCase[]>([]);
   const [request, setRequest] = useState("");
@@ -22,8 +24,8 @@ export default function DecoderPage() {
 
   useEffect(() => {
     try { const l = localStorage.getItem("brd-lang") as Lang | null; if (l && ["en", "ru", "lv"].includes(l)) setLang(l); } catch {}
-    fetch("/api/settings").then(r => r.json()).then(s => {
-      const ms = (s.models as ModelEntry[]).filter(m => m.enabled && m.model && s.keys[m.provider]?.set);
+    fetch("/api/public-models").then(r => r.json()).then(s => {
+      const ms = s.models as PublicModel[];
       setModels(ms);
       let saved = ""; try { saved = localStorage.getItem("brd-model") || ""; } catch {}
       setModelId(ms.find(m => m.id === saved)?.id || ms[0]?.id || "");
@@ -108,7 +110,7 @@ export default function DecoderPage() {
           <div className="field">
             <label htmlFor="model">{t("l_model")}</label>
             <select id="model" value={modelId} onChange={e => setModelId(e.target.value)} disabled={!models?.length}>
-              {(models || []).map(m => <option key={m.id} value={m.id}>{m.label || m.model}</option>)}
+              {(models || []).map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
           </div>
           <div className="actions">

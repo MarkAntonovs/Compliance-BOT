@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readSettings } from "@/lib/settings";
+import { onServer, readSettings } from "@/lib/settings";
 import { buildPrompt, parseAnalysis } from "@/lib/prompt";
 import { callModel } from "@/lib/providers";
 import type { AnalyzeInput, AnalyzeResult } from "@/lib/types";
@@ -7,7 +7,21 @@ import type { AnalyzeInput, AnalyzeResult } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// Simple limit against someone burning the API balance: N requests per hour per IP (on the server only).
+// Kept in memory, so it is approximate on Vercel (each instance counts separately).
+const hits = new Map<string, number[]>();
+function tooMany(ip: string): boolean {
+  const limit = Number(process.env.MAX_REQUESTS_PER_HOUR || 30);
+  const now = Date.now(), recent = (hits.get(ip) || []).filter(t => now - t < 3600_000);
+  if (recent.length >= limit) { hits.set(ip, recent); return true; }
+  recent.push(now); hits.set(ip, recent); return false;
+}
+
 export async function POST(req: Request) {
+  if (onServer()) {
+    const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
+    if (tooMany(ip)) return NextResponse.json({ ok: false, error: "Слишком много запросов. Попробуйте через час." }, { status: 429 });
+  }
   const input = (await req.json()) as AnalyzeInput;
   const s = await readSettings();
   const m = s.models.find(x => x.id === input.modelId);

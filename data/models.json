@@ -1,0 +1,11 @@
+[
+  {
+    "id": "m_demo",
+    "provider": "demo",
+    "model": "demo",
+    "label": "Демо-заглушка",
+    "priceIn": 0,
+    "priceOut": 0,
+    "enabled": true
+  }
+]

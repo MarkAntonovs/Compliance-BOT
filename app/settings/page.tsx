@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { ModelEntry, ProviderId } from "@/lib/types";
 
 type ProviderInfo = { id: ProviderId; name: string; keyUrl: string; keyHint: string };
-type KeyState = Record<string, { set: boolean; preview: string }>;
+type KeyState = Record<string, { set: boolean; preview: string; source?: string }>;
 type ModelInfo = { id: string; priceIn?: number; priceOut?: number };
 
 const newId = () => "m_" + Math.random().toString(36).slice(2, 8);
@@ -18,15 +18,17 @@ export default function SettingsPage() {
   const [available, setAvailable] = useState<Record<string, ModelInfo[]>>({});
   const [check, setCheck] = useState<Record<string, { ok: boolean; msg: string } | "busy">>({});
   const [msg, setMsg] = useState("");
+  const [server, setServer] = useState(false);
 
   async function load() {
     const s = await (await fetch("/api/settings")).json();
-    setProviders(s.providers); setDemo(s.demo); setKeys(s.keys); setModels(s.models);
+    setProviders(s.providers); setDemo(s.demo); setKeys(s.keys); setModels(s.models); setServer(!!s.onServer);
   }
   useEffect(() => { load(); }, []);
 
   async function saveKey(p: ProviderId, value: string) {
-    await fetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ keys: { [p]: value } }) });
+    const r = await fetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ keys: { [p]: value } }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); setCheck(c => ({ ...c, [p]: { ok: false, msg: j.error || "Не удалось сохранить" } })); return; }
     setDraftKeys(d => ({ ...d, [p]: "" }));
     await load();
     if (value) testKey(p);
@@ -60,7 +62,8 @@ export default function SettingsPage() {
   }
   async function saveModels() {
     const r = await fetch("/api/settings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ models }) });
-    setMsg(r.ok ? "Модели сохранены" : "Не удалось сохранить"); setTimeout(() => setMsg(""), 2500);
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? "Модели сохранены в data/models.json. Закоммитьте файл в GitHub, чтобы сайт на Vercel их увидел." : (j.error || "Не удалось сохранить")); setTimeout(() => setMsg(""), 8000);
     load();
   }
 
@@ -69,9 +72,16 @@ export default function SettingsPage() {
       <div className="pagehead">
         <div>
           <h1>Настройки и API-ключи</h1>
-          <p className="sub">Ключи хранятся только на этом компьютере, в файле <code>data/settings.local.json</code>. В GitHub он не попадает. Каждый из вас вводит свои ключи у себя.</p>
+          <p className="sub">На своём компьютере ключи хранятся в файле <code>data/settings.local.json</code>, в GitHub он не попадает. Список моделей хранится в <code>data/models.json</code> и попадает в GitHub, чтобы сайт на Vercel использовал те же модели.</p>
         </div>
       </div>
+      {server ? (
+        <div className="warnbox" style={{ marginBottom: 16 }}>
+          Это сайт на сервере (Vercel): здесь ничего нельзя сохранить. Ключи задаются в Vercel → Project → Settings → Environment Variables
+          (ANTHROPIC_API_KEY, OPENAI_API_KEY, XAI_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY), модели — через файл data/models.json в GitHub.
+          Кнопка «Проверить» работает.
+        </div>
+      ) : null}
 
       <div className="panel">
         <h2>1. API-ключи провайдеров</h2>
@@ -85,7 +95,7 @@ export default function SettingsPage() {
                 return (
                   <tr key={p.id}>
                     <td><strong>{p.name}</strong><br /><a href={p.keyUrl} target="_blank" rel="noreferrer" className="note">где взять ключ ↗</a></td>
-                    <td className="mono">{keys[p.id]?.set ? keys[p.id].preview : <span className="note">не задан</span>}</td>
+                    <td className="mono">{keys[p.id]?.set ? <>{keys[p.id].preview}{keys[p.id].source === "env" ? <div className="note">из переменных окружения</div> : null}</> : <span className="note">не задан</span>}</td>
                     <td style={{ minWidth: 260 }}>
                       <div className="actions">
                         <input type="password" aria-label={"Ключ " + p.name} placeholder={p.keyHint} value={draftKeys[p.id] || ""} onChange={e => setDraftKeys(d => ({ ...d, [p.id]: e.target.value }))} style={{ flex: 1, minWidth: 140 }} />

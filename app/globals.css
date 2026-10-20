@@ -125,3 +125,9 @@ tr:last-child td{border-bottom:0}
 .caselist{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px}
 .progress{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
 .progress i{display:block;height:100%;background:var(--accent);transition:width .3s}
+
+/* cases page */
+.grid-cases{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:20px;align-items:start}
+.case-nav{max-height:75vh;overflow:auto}
+@media (max-width:900px){.grid-cases{grid-template-columns:minmax(0,1fr)}.case-nav{max-height:260px}}
+.seg{flex-wrap:wrap;max-width:100%}

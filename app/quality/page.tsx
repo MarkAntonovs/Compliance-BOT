@@ -172,7 +172,7 @@ export default function QualityPage() {
               ))}
             </ul>
           </div>
-          <p className="note">Кейсы — в <code>data/cases/*.json</code>, критерии — в <code>data/rubric.json</code>.</p>
+          <p className="note"><Link href="/cases">Читать тексты всех кейсов →</Link></p>
         </div>
 
         <div className="panel">
@@ -273,14 +273,14 @@ export default function QualityPage() {
                     const trap = cell ? trapCheck(caseById[cid], cell) : null;
                     const g = cell?.checks ? Object.values(cell.checks) : [];
                     return (
-                      <tr key={cid}>
+                      <tr key={cid} onClick={() => cell && setOpenId(cid)} style={{ cursor: cell ? "pointer" : "default" }}>
                         <td style={{ minWidth: 220 }}><span className="mono note">{cid}</span> {caseById[cid]?.title}</td>
-                        <td>{!cell ? <span className="note">{running ? "…" : "—"}</span> : cell.ok ? <span className="pill ok">OK</span> : <span className="pill bad">ошибка</span>}{" "}
+                        <td>{!cell ? <span className="note">{running ? "модель пишет разбор, до 1 минуты…" : "—"}</span> : cell.ok ? <span className="pill ok">OK</span> : <><span className="pill bad">ошибка</span><div className="note" style={{ color: "var(--bad)", maxWidth: 360 }}>{cell.error}</div></>}{" "}
                           {trap === true ? <span className="pill ok">ловушка ✓</span> : trap === false ? <span className="pill bad">ловушка ✗</span> : null}</td>
                         <td className="num">{g.length ? `${g.filter(Boolean).length} / ${g.length}` : "—"}</td>
                         <td className="num">{typeof cell?.score === "number" ? `${cell.score} / 5` : "—"}</td>
                         <td className="num">{cell ? fmt$(cell.costUsd) : ""}</td>
-                        <td>{cell ? <button type="button" className="btn ghost small" onClick={() => setOpenId(cid)}>Открыть</button> : null}</td>
+                        <td>{cell ? <button type="button" className="btn small" onClick={e => { e.stopPropagation(); setOpenId(cid); }}>Открыть разбор</button> : null}</td>
                       </tr>
                     );
                   })}

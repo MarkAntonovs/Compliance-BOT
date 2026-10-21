@@ -3,9 +3,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
-  { href: "/", label: "Разбор запроса" },
-  { href: "/cases", label: "Кейсы" },
-  { href: "/quality", label: "Проверка качества" },
+  { href: "/", label: "Разбор" },
+  { href: "/pipeline", label: "Конвейер" },
+  { href: "/review", label: "Проверка" },
+  { href: "/rules", label: "Правила" },
   { href: "/settings", label: "Настройки" },
 ];
 

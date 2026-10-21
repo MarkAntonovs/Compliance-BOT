@@ -1,132 +1,70 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import ResultView from "@/components/ResultView";
-import { tr } from "@/lib/i18n";
-import type { AnalyzeResult, ClientType, Lang, TestCase } from "@/lib/types";
+import AnalysisView from "@/components/AnalysisView";
+import type { AnalysisV2 } from "@/lib/agents";
 
-type PublicModel = { id: string; label: string; provider: string };
+type L = "ru" | "en" | "lv";
+const T: Record<L, Record<string, string>> = {
+  ru: { title: "Разбор вашей ситуации", sub: "Опишите ситуацию или вставьте запрос банка. Помощник объяснит риски (бенефициары, источник средств, санкции ЕС), какие документы нужны, что сделать и как ответить банку.",
+    facts: "Ситуация или запрос банка (уберите имена, номера счетов, персональные коды)", factsPh: "Например: я гражданин Латвии и директор ООО в России, компания занимается строительством. Банк просит пояснить мою роль в этой компании…",
+    question: "Ваш вопрос (необязательно)", ctype: "Кто вы", ind: "Частное лицо", co: "Компания", st: "Самозанятый", go: "Разобрать", busy: "Анализирую… обычно до минуты", empty: "Здесь появится разбор.",
+    guard: "Помощник объясняет и подсказывает. Он не принимает решений за банк, не заменяет юриста и не помогает скрывать сведения." },
+  en: { title: "Your situation, explained", sub: "Describe your situation or paste the bank's request. The assistant explains the risks (beneficial owners, source of funds, EU sanctions), the documents needed, what to do and how to answer the bank.",
+    facts: "Situation or bank request (remove names, account numbers, personal codes)", factsPh: "E.g. I am a Latvian citizen and director of an LLC in Russia that does construction. The bank asks me to explain my role…",
+    question: "Your question (optional)", ctype: "You are", ind: "Individual", co: "Company", st: "Self-employed", go: "Analyse", busy: "Analysing… usually under a minute", empty: "The analysis will appear here.",
+    guard: "The assistant explains and advises. It does not decide for the bank, does not replace a lawyer and does not help hide information." },
+  lv: { title: "Jūsu situācijas analīze", sub: "Aprakstiet situāciju vai ielīmējiet bankas pieprasījumu. Asistents izskaidros riskus (patiesie labuma guvēji, līdzekļu izcelsme, ES sankcijas), vajadzīgos dokumentus, ko darīt un kā atbildēt bankai.",
+    facts: "Situācija vai bankas pieprasījums (izņemiet vārdus, kontu numurus, personas kodus)", factsPh: "Piemēram: esmu Latvijas pilsonis un Krievijas SIA valdes loceklis, uzņēmums nodarbojas ar būvniecību…",
+    question: "Jūsu jautājums (nav obligāti)", ctype: "Jūs esat", ind: "Fiziska persona", co: "Uzņēmums", st: "Pašnodarbinātais", go: "Analizēt", busy: "Analizēju… parasti līdz minūtei", empty: "Šeit parādīsies analīze.",
+    guard: "Asistents skaidro un iesaka. Tas nepieņem lēmumus bankas vietā, neaizstāj juristu un nepalīdz slēpt informāciju." },
+};
 
-const SAMPLE_IDS = ["S01", "S07", "S16", "S03", "S29"];
-
-export default function DecoderPage() {
-  const [lang, setLang] = useState<Lang>("ru");
-  const t = tr(lang);
-  const [models, setModels] = useState<PublicModel[] | null>(null);
-  const [modelId, setModelId] = useState("");
-  const [samples, setSamples] = useState<TestCase[]>([]);
-  const [request, setRequest] = useState("");
-  const [context, setContext] = useState("");
-  const [clientType, setClientType] = useState<ClientType>("individual");
-  const [replyLang, setReplyLang] = useState<"same" | Lang>("same");
+export default function Home() {
+  const [lang, setLang] = useState<L>("ru");
+  const t = T[lang];
+  const [facts, setFacts] = useState("");
+  const [question, setQuestion] = useState("");
+  const [clientType, setClientType] = useState("individual");
   const [busy, setBusy] = useState(false);
-  const [res, setRes] = useState<AnalyzeResult | null>(null);
+  const [res, setRes] = useState<{ ok: boolean; data?: AnalysisV2; error?: string } | null>(null);
 
-  useEffect(() => {
-    try { const l = localStorage.getItem("brd-lang") as Lang | null; if (l && ["en", "ru", "lv"].includes(l)) setLang(l); } catch {}
-    fetch("/api/public-models").then(r => r.json()).then(s => {
-      const ms = s.models as PublicModel[];
-      setModels(ms);
-      let saved = ""; try { saved = localStorage.getItem("brd-model") || ""; } catch {}
-      setModelId(ms.find(m => m.id === saved)?.id || ms[0]?.id || "");
-    });
-    fetch("/api/cases").then(r => r.json()).then(d => setSamples(SAMPLE_IDS.map(id => (d.cases as TestCase[]).find(c => c.id === id)).filter(Boolean) as TestCase[]));
-  }, []);
+  useEffect(() => { try { const l = localStorage.getItem("brd-lang") as L | null; if (l && T[l]) setLang(l); } catch {} }, []);
+  function pick(l: L) { setLang(l); try { localStorage.setItem("brd-lang", l); } catch {} }
 
-  function pickLang(l: Lang) { setLang(l); try { localStorage.setItem("brd-lang", l); } catch {} }
-  function useSample(c: TestCase) { setRequest(c.bank_request_text); setContext(c.user_context || ""); setClientType(c.client_type); }
-
-  async function run(e: React.FormEvent) {
-    e.preventDefault();
-    if (!request.trim() || !modelId) return;
+  async function go(e: React.FormEvent) {
+    e.preventDefault(); if (!facts.trim()) return;
     setBusy(true); setRes(null);
-    try { localStorage.setItem("brd-model", modelId); } catch {}
-    try {
-      const r = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ modelId, request, context, clientType, replyLang, uiLang: lang }) });
-      setRes(await r.json());
-    } catch (err) {
-      setRes({ ok: false, error: String(err) } as AnalyzeResult);
-    } finally { setBusy(false); }
+    try { setRes(await (await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ facts, question, clientType, lang }) })).json()); }
+    catch (err) { setRes({ ok: false, error: String(err) }); }
+    finally { setBusy(false); }
   }
 
   return (
     <main className="wrap">
       <div className="pagehead">
-        <div>
-          <div className="note" style={{ fontFamily: "var(--f-mono)", textTransform: "uppercase", letterSpacing: ".08em" }}>{t("tag")}</div>
-          <h1>{t("title")}</h1>
-          <p className="sub">{t("subtitle")}</p>
-        </div>
+        <div><h1>{t.title}</h1><p className="sub">{t.sub}</p></div>
         <div className="seg" role="group" aria-label="Language">
-          {(["en", "ru", "lv"] as Lang[]).map(l => (
-            <button key={l} type="button" aria-pressed={lang === l} onClick={() => pickLang(l)}>{l.toUpperCase()}</button>
-          ))}
+          {(["en", "ru", "lv"] as L[]).map(l => <button key={l} type="button" aria-pressed={lang === l} onClick={() => pick(l)}>{l.toUpperCase()}</button>)}
         </div>
       </div>
-
-      {models && models.length === 0 ? (
-        <div className="warnbox" style={{ marginBottom: 16 }}>
-          {t("no_models")} <Link href="/settings">{t("go_settings")}</Link>
-        </div>
-      ) : null}
-
       <div className="grid2">
-        <form className="panel" onSubmit={run} autoComplete="off">
-          <h2>{t("h_input")}</h2>
-          {samples.length ? (
-            <div className="field">
-              <span className="lbl">{t("samples")}</span>
-              <div className="chips">{samples.map(s => <button type="button" className="chip" key={s.id} onClick={() => useSample(s)}>{s.title}</button>)}</div>
-            </div>
-          ) : null}
-          <div className="field">
-            <label htmlFor="req">{t("l_req")}</label>
-            <textarea id="req" className="mono" style={{ minHeight: 200 }} value={request} onChange={e => setRequest(e.target.value)} required />
-          </div>
-          <div className="row">
-            <div className="field">
-              <label htmlFor="ctype">{t("l_ctype")}</label>
-              <select id="ctype" value={clientType} onChange={e => setClientType(e.target.value as ClientType)}>
-                <option value="individual">{t("o_ind")}</option>
-                <option value="company">{t("o_co")}</option>
-                <option value="sole_trader">{t("o_st")}</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="rlang">{t("l_reply")}</label>
-              <select id="rlang" value={replyLang} onChange={e => setReplyLang(e.target.value as "same" | Lang)}>
-                <option value="same">{t("o_same")}</option>
-                <option value="lv">Latviešu</option>
-                <option value="en">English</option>
-                <option value="ru">Русский</option>
-              </select>
-            </div>
-          </div>
-          <div className="field">
-            <label htmlFor="ctx">{t("l_ctx")}</label>
-            <textarea id="ctx" style={{ minHeight: 90 }} placeholder={t("ctx_ph")} value={context} onChange={e => setContext(e.target.value)} />
-          </div>
-          {models && models.length > 1 ? <div className="field">
-            <label htmlFor="model">{t("l_model")}</label>
-            <select id="model" value={modelId} onChange={e => setModelId(e.target.value)} disabled={!models?.length}>
-              {(models || []).map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
-          </div> : null}
-          <div className="actions">
-            <button className="btn" type="submit" disabled={busy || !modelId || !request.trim()}>{t("b_go")}</button>
-          </div>
-          <div className="guard">{t("guard")}</div>
+        <form className="panel" onSubmit={go}>
+          <div className="field"><label htmlFor="facts">{t.facts}</label>
+            <textarea id="facts" style={{ minHeight: 240 }} placeholder={t.factsPh} value={facts} onChange={e => setFacts(e.target.value)} required /></div>
+          <div className="field"><label htmlFor="q">{t.question}</label>
+            <textarea id="q" style={{ minHeight: 70 }} value={question} onChange={e => setQuestion(e.target.value)} /></div>
+          <div className="field"><label htmlFor="ct">{t.ctype}</label>
+            <select id="ct" value={clientType} onChange={e => setClientType(e.target.value)}>
+              <option value="individual">{t.ind}</option><option value="company">{t.co}</option><option value="sole_trader">{t.st}</option>
+            </select></div>
+          <button className="btn" type="submit" disabled={busy || !facts.trim()}>{t.go}</button>
+          <div className="guard">{t.guard}</div>
         </form>
-
         <div className="panel" aria-live="polite">
-          <div className={"status" + (busy ? " busy" : res && !res.ok ? " err" : "")}>
-            <span className="dot" />
-            <span>{busy ? t("s_think") : res ? (res.ok ? t("s_done") : res.error) : t("s_ready")}</span>
-            {res && res.ok ? <span>· {res.label} · {(res.latencyMs / 1000).toFixed(1)} s · ${res.costUsd.toFixed(4)}</span> : null}
-          </div>
-          {res?.ok && res.data ? <ResultView data={res.data} lang={lang} /> : !busy && !res ? <p className="note">{t("s_empty")}</p> : null}
-          {res && !res.ok && res.raw ? <pre className="raw">{res.raw}</pre> : null}
+          {busy ? <div className="status busy"><span className="dot" /><span>{t.busy}</span></div> : null}
+          {res?.ok && res.data ? <AnalysisView data={res.data} lang={lang} /> : null}
+          {res && !res.ok ? <div className="alert">{res.error}</div> : null}
+          {!busy && !res ? <p className="note">{t.empty}</p> : null}
         </div>
       </div>
     </main>

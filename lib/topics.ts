@@ -1,0 +1,11 @@
+// Topics the case generator can work on. Shared by the server agents and the Conveyor page.
+export const TOPICS: { id: string; label: string; brief: string }[] = [
+  { id: "russia", label: "Россия: директорство, контроль, ст. 5n и 8a", brief: "EU person (citizen or resident) linked to a Russian company: director role, ownership or control; the Russian company's business may fall under services banned by Art. 5n of Regulation 833/2014 (e.g. construction, consulting, IT, accounting, legal, engineering) — Art. 5n and Art. 8a best-efforts issues. Often the client does not realise it." },
+  { id: "ubo", label: "Цепочка владения и бенефициары", brief: "Multi-layer ownership through several jurisdictions (e.g. Cyprus, Luxembourg funds, BVI, UK, Switzerland), shareholders near the 25% UBO threshold, nominees, unknown owners behind a foreign holding, discrepancies with the Latvian Register of Enterprises." },
+  { id: "pep", label: "PEP и родственники", brief: "Politically exposed persons, their family members or close associates as UBO or management; source of wealth questions; public roles in Latvia or abroad." },
+  { id: "funds", label: "Источник средств: займы, фонды, repo, цессии, дарение", brief: "Source of funds and wealth traced through loans, share gifts, repo financing, assignment of claims (cession), investment funds, property sales; documents that do not match; turnover growth." },
+  { id: "trade", label: "Торговля товарами и санкции", brief: "Goods trade with Russia-adjacent markets (Kazakhstan, Kyrgyzstan, Armenia, Turkey, UAE): CN/HS codes, Annex XVIII luxury threshold, Annex XXIII, common high priority items, re-export risk, end-user, no-Russia clause, CMR / e-AD documents." },
+  { id: "media", label: "Негативные публикации и совпадения", brief: "Adverse media and screening hits: criminal proceedings, investigations, sanctions-list name matches that may be false positives; what to verify and how." },
+  { id: "bank", label: "Ответ на запрос банка", brief: "The client received a due-diligence request from a Latvian bank and needs to understand it and answer correctly; the underlying situation contains a real compliance issue." },
+  { id: "free", label: "Свободная тема", brief: "Any realistic EDD or sanctions situation a Latvian bank client or company might face." },
+];

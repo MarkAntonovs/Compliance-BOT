@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { onServer, readSettings } from "@/lib/settings";
-import { buildPrompt, parseAnalysis, PROMPT_VERSION } from "@/lib/prompt";
-import { callModel } from "@/lib/providers";
-import type { AnalyzeInput, AnalyzeResult } from "@/lib/types";
+import { onServer } from "@/lib/settings";
+import { analyse, ANALYST_VERSION } from "@/lib/agents";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// Public analysis for the client page. Nothing is stored.
 // Simple limit against someone burning the API balance: N requests per hour per IP (on the server only).
-// Kept in memory, so it is approximate on Vercel (each instance counts separately).
 const hits = new Map<string, number[]>();
 function tooMany(ip: string): boolean {
   const limit = Number(process.env.MAX_REQUESTS_PER_HOUR || 30);
@@ -22,23 +20,13 @@ export async function POST(req: Request) {
     const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "unknown";
     if (tooMany(ip)) return NextResponse.json({ ok: false, error: "Слишком много запросов. Попробуйте через час." }, { status: 429 });
   }
-  const input = (await req.json()) as AnalyzeInput;
-  const s = await readSettings();
-  const m = s.models.find(x => x.id === input.modelId);
-  if (!m) return NextResponse.json({ ok: false, error: "Модель не найдена в Настройках." }, { status: 400 });
-  if (!input.request?.trim()) return NextResponse.json({ ok: false, error: "Пустой запрос банка." }, { status: 400 });
-
-  const base: AnalyzeResult = { ok: false, modelId: m.id, label: m.label || m.model, provider: m.provider, model: m.model, tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0, promptVersion: PROMPT_VERSION };
-  const t0 = Date.now();
+  const { facts, question = "", clientType = "individual", lang = "ru" } = await req.json();
+  if (!String(facts || "").trim()) return NextResponse.json({ ok: false, error: "Опишите ситуацию или вставьте запрос банка." }, { status: 400 });
   try {
-    const r = await callModel(m.provider, s.keys[m.provider] || "", m.model, buildPrompt(input));
-    const latencyMs = Date.now() - t0;
-    const costUsd = r.providerCostUsd ?? (r.tokensIn * (m.priceIn || 0) + r.tokensOut * (m.priceOut || 0)) / 1e6;
-    const data = parseAnalysis(r.text);
-    const out: AnalyzeResult = { ...base, ok: !!data, data: data || undefined, raw: r.text, tokensIn: r.tokensIn, tokensOut: r.tokensOut, costUsd, latencyMs,
-      error: data ? undefined : "Модель ответила не в формате JSON." };
-    return NextResponse.json(out);
+    const r = await analyse({ facts: String(facts), question: String(question), client_type: clientType }, ["ru", "en", "lv"].includes(lang) ? lang : "ru");
+    return NextResponse.json({ ok: !!r.data, data: r.data, raw: r.data ? undefined : r.raw, model: r.model, costUsd: r.costUsd, latencyMs: r.latencyMs, version: ANALYST_VERSION,
+      error: r.data ? undefined : "Модель ответила не в формате JSON." });
   } catch (e) {
-    return NextResponse.json({ ...base, latencyMs: Date.now() - t0, error: e instanceof Error ? e.message : String(e) });
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) });
   }
 }

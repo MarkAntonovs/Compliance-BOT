@@ -41,16 +41,30 @@ async function asError(res: Response): Promise<Error> {
 
 // Fake answer for the "demo" provider: turns each numbered/bulleted line of the request into an item.
 async function demoAnswer(prompt: string): Promise<CallResult> {
-  await new Promise(r => setTimeout(r, 600 + Math.random() * 900));
-  const req = (prompt.split("<<<REQUEST")[1] || "").split("REQUEST>>>")[0];
-  const lines = req.split("\n").map(l => l.trim()).filter(l => /^(\d+[.)]|[-—•a-z]\)|[-—•])\s*/i.test(l));
-  const items = (lines.length ? lines : ["(в запросе нет пронумерованных пунктов)"]).map(l => ({
-    item: l.replace(/^(\d+[.)]|[-—•a-z]\)|[-—•])\s*/i, "").slice(0, 140), why_requested: "ДЕМО: здесь будет объяснение от настоящей модели.",
-    possible_evidence: ["ДЕМО: пример документа"], what_to_clarify: "", status: "unclear" }));
-  const data = { detected_language: "other", request_types: ["other"], deadline: null,
-    plain_language_summary: "Это демо-ответ без ИИ. Он нужен, чтобы проверить интерфейс и тест-лабораторию. Подключите настоящую модель в Настройках.",
-    requested_items: items, questions_for_user: ["ДЕМО: вопрос к пользователю"], draft_reply: "Labdien!\n\n[ДЕМО: здесь будет черновик ответа]\n\nAr cieņu,\n[Vārds]",
-    check_before_sending: ["ДЕМО: пункт проверки"], uncertainties: [], safety_note: null };
+  await new Promise(r => setTimeout(r, 400 + Math.random() * 700));
+  let data: unknown;
+  if (prompt.startsWith("TASK:GENERATE_CASE")) {
+    const n = Math.floor(Math.random() * 900 + 100);
+    data = { title: `ДЕМО-кейс ${n}: директор российской стройфирмы`, client_type: "individual", lang: "ru",
+      facts: `ДЕМО. Клиент — гражданин Латвии, резидент Риги. С 2019 года является директором и владеет 60% ООО «Строй-${n}» (Россия, ОКВЭД 41.20 — строительство жилых и нежилых зданий). В банк поступил запрос: подтвердить роль клиента в ООО «Строй-${n}» и источник регулярных поступлений 4 000 EUR в месяц от этой компании.`,
+      question: "Банк спрашивает про мою российскую фирму. Что ответить?", hidden_issues: ["ДЕМО: директорство гражданина ЕС в российской компании — ст. 5n", "ДЕМО: контроль над компанией со строительной деятельностью — ст. 8a"] };
+  } else if (prompt.startsWith("TASK:DRAFT_RULE")) {
+    data = { title: "ДЕМО-правило", body: "ДЕМО: здесь Claude сформулирует правило из поправки эксперта." };
+  } else if (prompt.startsWith("TASK:ANALYSE_CASE")) {
+    data = { summary: "Это демо-разбор без ИИ. Он нужен, чтобы проверить интерфейс. Подключите настоящую модель в Настройках.", risk_level: "medium",
+      findings: [{ title: "ДЕМО: находка", explanation: "Здесь будет объяснение риска.", legal_basis: "Регламент 833/2014, ст. 5n", severity: "high" }],
+      ownership: "ДЕМО: клиент → 60% ООО (Россия)", documents_needed: [{ document: "ДЕМО: выписка ЕГРЮЛ", why: "Подтвердить роль", where_to_get: "ФНС России" }],
+      actions: ["ДЕМО: действие 1"], questions_for_client: ["ДЕМО: вопрос"], reply_to_bank: "", open_questions: [] };
+  } else {
+    const req = (prompt.split("<<<REQUEST")[1] || "").split("REQUEST>>>")[0];
+    const lines = req.split("\n").map(l => l.trim()).filter(l => /^(\d+[.)]|[-—•a-z]\)|[-—•])\s*/i.test(l));
+    const items = (lines.length ? lines : ["(в запросе нет пронумерованных пунктов)"]).map(l => ({
+      item: l.replace(/^(\d+[.)]|[-—•a-z]\)|[-—•])\s*/i, "").slice(0, 140), why_requested: "ДЕМО: здесь будет объяснение от настоящей модели.",
+      possible_evidence: ["ДЕМО: пример документа"], what_to_clarify: "", status: "unclear" }));
+    data = { detected_language: "other", request_types: ["other"], deadline: null,
+      plain_language_summary: "Это демо-ответ без ИИ. Подключите настоящую модель в Настройках.",
+      requested_items: items, questions_for_user: [], draft_reply: "", check_before_sending: [], uncertainties: [], safety_note: null };
+  }
   const text = JSON.stringify(data);
   return { text, tokensIn: Math.round(prompt.length / 4), tokensOut: Math.round(text.length / 4), providerCostUsd: 0 };
 }

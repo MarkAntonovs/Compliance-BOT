@@ -23,3 +23,25 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e), cases: [] }, { status: 500 });
   }
 }
+
+// Add a case by hand (Andrej's own or an anonymised real one).
+export async function POST(req: Request) {
+  const b = await req.json();
+  const facts = String(b.facts || "").trim();
+  if (facts.length < 20) return NextResponse.json({ ok: false, error: "Опишите ситуацию подробнее" }, { status: 400 });
+  const data = {
+    title: String(b.title || "").trim() || facts.slice(0, 80),
+    client_type: ["individual", "company", "sole_trader"].includes(b.client_type) ? b.client_type : "individual",
+    lang: ["ru", "en", "lv"].includes(b.lang) ? b.lang : "ru",
+    facts, question: String(b.question || "").trim(),
+    hidden_issues: String(b.hidden_issues || "").split("\n").map((x: string) => x.trim()).filter(Boolean),
+  };
+  try {
+    const p = await db();
+    const id = "M" + Date.now().toString(36).toUpperCase();
+    await p.query("insert into cases (id, topic, title, data, source) values ($1,$2,$3,$4,'expert')", [id, String(b.topic || "free"), data.title, data]);
+    return NextResponse.json({ ok: true, case: { id, title: data.title } });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+}

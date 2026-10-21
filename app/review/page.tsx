@@ -36,10 +36,10 @@ function ReviewDesk() {
   const loadCase = (id: string) => fetch("/api/pipeline/cases/" + id).then(r => r.json()).then(x => { if (x.ok) { setD(x); setVer(0); } });
   useEffect(() => { loadList(); }, []);
   useEffect(() => { if (cur) { loadCase(cur); setVerdict(null); setWrong(""); setRight(""); setDraft(null); setMsg(""); } }, [cur]);
-  useEffect(() => { if (!cur && rows.length) setCur((rows.find(r => r.analysis_id && !r.verdict) || rows[0]).id); }, [rows, cur]);
+  useEffect(() => { if (!cur && rows.length) setCur((rows.find(r => !r.verdict) || rows[0]).id); }, [rows, cur]);
 
-  const shown = rows.filter(r => filter === "all" || (filter === "todo" ? r.analysis_id && !r.verdict : r.verdict === filter));
-  const counts = useMemo(() => ({ todo: rows.filter(r => r.analysis_id && !r.verdict).length, bad: rows.filter(r => r.verdict === "bad").length, ok: rows.filter(r => r.verdict === "ok").length, all: rows.length }), [rows]);
+  const shown = rows.filter(r => filter === "all" || (filter === "todo" ? !r.verdict : r.verdict === filter));
+  const counts = useMemo(() => ({ todo: rows.filter(r => !r.verdict).length, bad: rows.filter(r => r.verdict === "bad").length, ok: rows.filter(r => r.verdict === "ok").length, all: rows.length }), [rows]);
   const a = d?.analyses[ver];
   const reviewsOf = (id?: number) => (d?.reviews || []).filter(r => r.analysis_id === id);
 

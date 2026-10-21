@@ -42,6 +42,19 @@ export default function PipelinePage() {
     setRunning(false); loadStats();
   }
 
+  const [mf, setMf] = useState({ title: "", facts: "", question: "", client_type: "individual", topic: "russia", hidden_issues: "" });
+  const [mBusy, setMBusy] = useState(false);
+  const [mMsg, setMMsg] = useState<{ id?: string; text: string } | null>(null);
+  async function addManual() {
+    setMBusy(true); setMMsg(null);
+    const r = await (await fetch("/api/pipeline/cases", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(mf) })).json();
+    if (!r.ok) { setMBusy(false); setMMsg({ text: r.error }); return; }
+    setMMsg({ id: r.case.id, text: "Кейс сохранён, бот разбирает…" });
+    const a = await (await fetch("/api/pipeline/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseId: r.case.id }) })).json();
+    setMBusy(false); setMMsg({ id: r.case.id, text: a.ok ? "Готово — разбор ждёт в «Проверке»." : "Кейс сохранён, но разбор не удался: " + (a.analysis?.error || a.error) });
+    setMf({ ...mf, title: "", facts: "", question: "", hidden_issues: "" }); loadStats();
+  }
+
   const done = steps.filter(s => s.state === "done" || s.state === "error").length;
   const cost = steps.reduce((a, s) => a + s.cost, 0);
 
@@ -75,6 +88,24 @@ export default function PipelinePage() {
           <span className="note">Один кейс — около минуты: генерация и разбор.</span>
         </div>
       </div>
+
+      <details className="panel">
+        <summary style={{ cursor: "pointer" }}><strong>Добавить свой кейс</strong> <span className="note">— твоя ситуация или обезличенный реальный случай</span></summary>
+        <div style={{ marginTop: 14 }}>
+          <div className="field"><label htmlFor="mt">Название</label><input id="mt" type="text" value={mf.title} onChange={e => setMf({ ...mf, title: e.target.value })} placeholder="Коротко, о чём кейс" /></div>
+          <div className="field"><label htmlFor="mfacts">Ситуация (от лица клиента: что он знает, какие документы, что пишет банк)</label><textarea id="mfacts" style={{ minHeight: 180 }} value={mf.facts} onChange={e => setMf({ ...mf, facts: e.target.value })} /></div>
+          <div className="field"><label htmlFor="mq">Вопрос клиента</label><textarea id="mq" style={{ minHeight: 60 }} value={mf.question} onChange={e => setMf({ ...mf, question: e.target.value })} /></div>
+          <div className="row">
+            <div className="field"><label htmlFor="mct">Клиент</label><select id="mct" value={mf.client_type} onChange={e => setMf({ ...mf, client_type: e.target.value })}><option value="individual">Частное лицо</option><option value="company">Компания</option><option value="sole_trader">Самозанятый</option></select></div>
+            <div className="field"><label htmlFor="mtp">Тема</label><select id="mtp" value={mf.topic} onChange={e => setMf({ ...mf, topic: e.target.value })}>{TOPICS.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}</select></div>
+          </div>
+          <div className="field"><label htmlFor="mh">Что должен найти хороший разбор (по строке на пункт, бот этого не видит)</label><textarea id="mh" style={{ minHeight: 80 }} value={mf.hidden_issues} onChange={e => setMf({ ...mf, hidden_issues: e.target.value })} /></div>
+          <div className="actions">
+            <button className="btn" type="button" disabled={mBusy || mf.facts.trim().length < 20} onClick={addManual}>{mBusy ? "Сохраняю и разбираю…" : "Сохранить и разобрать"}</button>
+            {mMsg ? <span className="note">{mMsg.text} {mMsg.id ? <Link href={`/review?case=${mMsg.id}`}>Открыть</Link> : null}</span> : null}
+          </div>
+        </div>
+      </details>
 
       {steps.length ? (
         <div className="panel">

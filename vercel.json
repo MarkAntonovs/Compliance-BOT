@@ -1,0 +1,8 @@
+{
+  "crons": [
+    { "path": "/api/sanctions/cron?list=eu", "schedule": "10 4 * * *" },
+    { "path": "/api/sanctions/cron?list=un", "schedule": "20 4 * * *" },
+    { "path": "/api/sanctions/cron?list=ofac", "schedule": "30 4 * * *" },
+    { "path": "/api/sanctions/cron?list=uk", "schedule": "40 4 * * *" }
+  ]
+}

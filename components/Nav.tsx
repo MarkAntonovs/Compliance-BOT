@@ -7,6 +7,7 @@ const LINKS = [
   { href: "/pipeline", label: "Конвейер" },
   { href: "/review", label: "Проверка" },
   { href: "/rules", label: "Правила" },
+  { href: "/partner", label: "Партнёр" },
   { href: "/settings", label: "Настройки" },
 ];
 

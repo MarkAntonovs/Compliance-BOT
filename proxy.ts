@@ -7,7 +7,9 @@ import type { NextRequest } from "next/server";
 // - On a server the admin parts (Lab, Settings) need ADMIN_PASSWORD. Without it they are closed.
 // Passwords are set in Vercel → Project → Settings → Environment Variables.
 
-const ADMIN_PATHS = ["/pipeline", "/review", "/rules", "/settings", "/api/settings", "/api/models", "/api/pipeline", "/api/rules"];
+const ADMIN_PATHS = ["/pipeline", "/review", "/rules", "/settings", "/api/settings", "/api/models", "/api/pipeline", "/api/rules", "/partner", "/api/partner", "/api/sanctions"];
+// Called by Vercel Cron; the route checks CRON_SECRET itself.
+const OPEN_PATHS = ["/api/sanctions/cron"];
 const isServer = () => !!process.env.VERCEL || process.env.DEPLOYED === "1";
 
 function askPassword(realm: string) {
@@ -26,6 +28,7 @@ function passwordFrom(req: NextRequest): string | null {
 export function proxy(req: NextRequest) {
   if (!isServer()) return NextResponse.next();
   const path = req.nextUrl.pathname;
+  if (OPEN_PATHS.includes(path)) return NextResponse.next();
   const given = passwordFrom(req);
   const site = process.env.SITE_PASSWORD;
   const admin = process.env.ADMIN_PASSWORD;

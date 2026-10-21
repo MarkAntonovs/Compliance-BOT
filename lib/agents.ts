@@ -200,7 +200,7 @@ ${input.how_right}
 Write in Russian. Reply with only one JSON object: {"title":"","body":""}`;
 }
 
-async function run<T>(prompt: string, role: Role): Promise<{ data: T | null; raw: string; costUsd: number; latencyMs: number; model: string; truncated: boolean }> {
+export async function run<T>(prompt: string, role: Role): Promise<{ data: T | null; raw: string; costUsd: number; latencyMs: number; model: string; truncated: boolean }> {
   const { m, key } = await activeModel(role);
   const t0 = Date.now();
   const r = await callModel(m.provider, key, m.model, prompt);

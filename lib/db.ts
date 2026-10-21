@@ -58,7 +58,51 @@ create table if not exists rules (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+create table if not exists sanction_lists (
+  id text primary key,
+  label text not null default '',
+  source_url text not null default '',
+  updated_at timestamptz,
+  entries int not null default 0,
+  names int not null default 0,
+  error text,
+  checked_at timestamptz
+);
+create table if not exists sanction_entries (
+  list text not null,
+  ref text not null,
+  kind text not null default '',
+  name text not null,
+  programme text not null default '',
+  details jsonb not null default '{}',
+  primary key (list, ref)
+);
+create table if not exists sanction_names (
+  list text not null,
+  ref text not null,
+  name text not null,
+  norm text not null
+);
+create index if not exists sanction_names_ref on sanction_names(list, ref);
+create table if not exists partner_checks (
+  id serial primary key,
+  title text not null,
+  input jsonb not null,
+  registry jsonb,
+  parties jsonb,
+  hits jsonb,
+  report jsonb,
+  model text,
+  raw text,
+  error text,
+  cost_usd numeric not null default 0,
+  created_at timestamptz not null default now()
+);
 `;
+
+// Fuzzy name search for sanctions screening (Neon supports pg_trgm).
+const TRGM = `create extension if not exists pg_trgm;
+create index if not exists sanction_names_trgm on sanction_names using gin (norm gin_trgm_ops);`;
 
 // Andrej's first rules, added once when the rules table is empty.
 const SEED_RULES: { title: string; body: string }[] = [
@@ -101,6 +145,7 @@ export async function db() {
   if (!ready) {
     ready = (async () => {
       await p.query(SCHEMA);
+      await p.query(TRGM);
       const { rows } = await p.query("select count(*)::int as n from rules");
       if (rows[0].n === 0) {
         for (const r of SEED_RULES) await p.query("insert into rules (title, body, status) values ($1, $2, 'active')", [r.title, r.body]);

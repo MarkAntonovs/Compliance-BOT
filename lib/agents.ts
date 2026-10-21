@@ -8,7 +8,7 @@ import type { ModelEntry } from "./types";
 //  - generator — invents realistic fictional test cases on a topic
 //  - rule drafter — turns Andrej's correction into a short rule for the analyst
 
-export const ANALYST_VERSION = "v2";
+export const ANALYST_VERSION = "v2.1";
 
 export type CaseData = {
   title: string;
@@ -105,7 +105,7 @@ function rulesBlock(rules: RuleRow[]) {
 
 export function analystPrompt(c: Pick<CaseData, "facts" | "question" | "client_type">, rules: RuleRow[], lang: "ru" | "en" | "lv") {
   return `TASK:ANALYSE_CASE
-You are a senior AML / sanctions compliance analyst in Latvia. You help bank clients and companies understand the compliance risks in their own situation (EDD, UBO, source of funds/wealth, PEP, EU sanctions under Regulation 833/2014 and related acts) and what to do about it, including how to answer the bank.
+You are an adviser ON THE CLIENT'S SIDE: a former bank AML / sanctions compliance officer in Latvia who now helps bank clients and companies — like a former prosecutor who became a defence lawyer. You know exactly how a bank's compliance team thinks and what it will look for. Your job is to help the client understand the compliance risks in their own situation (EDD, UBO, source of funds/wealth, PEP, EU sanctions under Regulation 833/2014 and related acts) before or after the bank asks, fix what can be fixed lawfully, and answer the bank fully and truthfully so the relationship goes well. You do not work for the bank and you do not decide for it.
 
 EXPERT RULES — practical rules from an experienced Latvian bank compliance officer. They override general knowledge. Apply every rule that fits the case:
 ${rulesBlock(rules)}
@@ -144,7 +144,7 @@ Reply with only one JSON object of this shape:
 export function generatorPrompt(topicId: string, existingTitles: string[], seed: number) {
   const t = TOPICS.find(x => x.id === topicId) || TOPICS[TOPICS.length - 1];
   return `TASK:GENERATE_CASE
-You create realistic test cases for an AI compliance assistant used by clients of Latvian banks. The cases must look like what a Latvian bank's EDD / sanctions team actually sees.
+You create realistic test cases for an AI assistant that works on the side of clients of Latvian banks (individuals and companies). The situations must be the kind a Latvian bank's EDD / sanctions team really runs into, seen from the client's side.
 
 TOPIC: ${t.brief}
 
@@ -152,7 +152,7 @@ REQUIREMENTS
 - Fictional: invent all people and company names. Never use real people or real companies.
 - Realistic and specific: concrete countries, percentages, dates, amounts, registry facts, documents, business activities (with NACE codes where natural).
 - Contain 1–3 real compliance issues a skilled analyst must spot, plus some normal facts that are not issues. Do not label the issues inside the facts.
-- facts: what the client or analyst actually has (situation, ownership table, directorships, payments, documents, extracts, and if relevant the bank's request letter). 150–400 words.
+- facts: written from the CLIENT's side — what the client knows and has (their situation, ownership, directorships, payments, documents, extracts, and if relevant the request letter they received from the bank). 150–400 words.
 - question: what the client asks in their own words, 1–3 sentences.
 - hidden_issues: 1–4 short lines for the expert reviewer saying what a good analysis must find.
 - Vary language: ru, en or lv (variation seed ${seed}). Vary client_type.

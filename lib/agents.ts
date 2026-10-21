@@ -36,28 +36,39 @@ export type AnalysisV2 = {
 export { TOPICS } from "./topics";
 import { TOPICS } from "./topics";
 
-let autoModel: ModelEntry | null = null;
+export type Role = "analyst" | "generator" | "drafter";
+const autoModels: Partial<Record<Role, ModelEntry>> = {};
 
-// The model every agent uses: the first enabled real model from data/models.json;
-// if none is listed but an Anthropic key exists, the newest Claude Sonnet is picked automatically
-// (ANTHROPIC_MODEL env var overrides the choice).
-export async function activeModel(): Promise<{ m: ModelEntry; key: string }> {
+// Approximate USD per 1M tokens by model family, only for the cost estimate shown on the site.
+function priceFor(id: string): [number, number] {
+  if (/haiku/i.test(id)) return [1, 5];
+  if (/sonnet/i.test(id)) return [3, 15];
+  if (/opus/i.test(id)) return [5, 25];
+  return [15, 75]; // unknown family: assume expensive so the estimate never looks too low
+}
+const newest = (ids: string[], re: RegExp) => ids.filter(x => re.test(x)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0];
+
+// Which model each role uses.
+// 1) env override: ANALYST_MODEL / GENERATOR_MODEL (ANTHROPIC_MODEL = analyst + drafter);
+// 2) a real model enabled in data/models.json (used for all roles);
+// 3) automatic, cheapest sensible choice: generator → newest Haiku; analyst & drafter → newest Sonnet, else newest Haiku.
+//    Expensive families (Opus, Fable, …) are never picked automatically.
+export async function activeModel(role: Role = "analyst"): Promise<{ m: ModelEntry; key: string }> {
   const s = await readSettings();
+  const envId = role === "generator" ? process.env.GENERATOR_MODEL : (process.env.ANALYST_MODEL || process.env.ANTHROPIC_MODEL);
+  if (envId && s.keys.anthropic) {
+    const [pi, po] = priceFor(envId);
+    return { m: { id: "m_env_" + role, provider: "anthropic", model: envId, label: envId, priceIn: pi, priceOut: po, enabled: true }, key: s.keys.anthropic };
+  }
   const ok = s.models.filter(m => m.enabled && m.model && (m.provider === "demo" || s.keys[m.provider]));
   let m = ok.find(x => x.provider !== "demo");
   if (!m && s.keys.anthropic) {
-    if (!autoModel) {
-      let id = process.env.ANTHROPIC_MODEL || "";
-      if (!id) {
-        const list = await listModels("anthropic", s.keys.anthropic).catch(() => []);
-        id = (list.find(x => /sonnet/i.test(x.id)) || list[0])?.id || "";
-        // Anthropic lists newest first; listModels sorts by name, so prefer the highest version number
-        const sonnets = list.filter(x => /sonnet/i.test(x.id)).map(x => x.id).sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-        if (sonnets[0]) id = sonnets[0];
-      }
-      if (id) autoModel = { id: "m_auto", provider: "anthropic", model: id, label: id, priceIn: 3, priceOut: 15, enabled: true };
+    if (!autoModels[role]) {
+      const ids = (await listModels("anthropic", s.keys.anthropic).catch(() => [])).map(x => x.id);
+      const id = role === "generator" ? (newest(ids, /haiku/i) || newest(ids, /sonnet/i)) : (newest(ids, /sonnet/i) || newest(ids, /haiku/i));
+      if (id) { const [pi, po] = priceFor(id); autoModels[role] = { id: "m_auto_" + role, provider: "anthropic", model: id, label: id, priceIn: pi, priceOut: po, enabled: true }; }
     }
-    if (autoModel) m = autoModel;
+    m = autoModels[role];
   }
   m = m || ok[0];
   if (!m) throw new Error("Модель не настроена. Добавьте ключ Anthropic (ANTHROPIC_API_KEY) в Vercel.");
@@ -189,8 +200,8 @@ ${input.how_right}
 Write in Russian. Reply with only one JSON object: {"title":"","body":""}`;
 }
 
-async function run<T>(prompt: string): Promise<{ data: T | null; raw: string; costUsd: number; latencyMs: number; model: string; truncated: boolean }> {
-  const { m, key } = await activeModel();
+async function run<T>(prompt: string, role: Role): Promise<{ data: T | null; raw: string; costUsd: number; latencyMs: number; model: string; truncated: boolean }> {
+  const { m, key } = await activeModel(role);
   const t0 = Date.now();
   const r = await callModel(m.provider, key, m.model, prompt);
   return { data: parseJson<T>(r.text), raw: r.text, costUsd: cost(m, r), latencyMs: Date.now() - t0, model: m.label || m.model, truncated: !!r.truncated };
@@ -198,13 +209,13 @@ async function run<T>(prompt: string): Promise<{ data: T | null; raw: string; co
 
 export async function analyse(c: Pick<CaseData, "facts" | "question" | "client_type">, lang: "ru" | "en" | "lv" = "ru") {
   const rules = await activeRules();
-  const r = await run<AnalysisV2>(analystPrompt(c, rules, lang));
+  const r = await run<AnalysisV2>(analystPrompt(c, rules, lang), "analyst");
   const ok = !!r.data && typeof r.data.summary === "string" && Array.isArray(r.data.findings);
   return { ...r, data: ok ? r.data : null, ruleIds: rules.map(x => x.id).filter(x => x > 0) };
 }
 
 export async function generateCase(topicId: string, existingTitles: string[], seed: number) {
-  const r = await run<CaseData>(generatorPrompt(topicId, existingTitles, seed));
+  const r = await run<CaseData>(generatorPrompt(topicId, existingTitles, seed), "generator");
   const d = r.data;
   const ok = !!d && typeof d.facts === "string" && d.facts.length > 40 && typeof d.title === "string";
   return { ...r, data: ok ? d : null };
@@ -212,7 +223,7 @@ export async function generateCase(topicId: string, existingTitles: string[], se
 
 export async function draftRule(input: Parameters<typeof ruleDrafterPrompt>[0]) {
   const rules = await activeRules();
-  return run<{ title: string; body: string }>(ruleDrafterPrompt(input, rules));
+  return run<{ title: string; body: string }>(ruleDrafterPrompt(input, rules), "drafter");
 }
 
 export function formatError(r: { data: unknown; truncated: boolean; raw: string }) {

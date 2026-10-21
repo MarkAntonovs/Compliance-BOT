@@ -14,10 +14,11 @@ export default function PipelinePage() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [running, setRunning] = useState(false);
   const [stats, setStats] = useState<{ cases: number; cost: number; err?: string } | null>(null);
+  const [models, setModels] = useState<Record<string, { model?: string; priceIn?: number; priceOut?: number; error?: string }>>({});
   const stop = useRef(false);
 
   const loadStats = () => fetch("/api/pipeline/cases").then(r => r.json()).then(d => setStats({ cases: d.cases?.length || 0, cost: d.totalCostUsd || 0, err: d.ok ? undefined : d.error }));
-  useEffect(() => { loadStats(); }, []);
+  useEffect(() => { loadStats(); fetch("/api/pipeline/models").then(r => r.json()).then(setModels).catch(() => {}); }, []);
 
   function upd(n: number, patch: Partial<Step>) { setSteps(s => s.map(x => x.n === n ? { ...x, ...patch } : x)); }
 
@@ -68,6 +69,12 @@ export default function PipelinePage() {
         {stats ? <span className="note">{stats.err ? <span style={{ color: "var(--bad)" }}>{stats.err}</span> : <>Всего кейсов: {stats.cases} · потрачено на разборы: ${stats.cost.toFixed(2)}</>}</span> : null}
       </div>
 
+      {models.generator ? (
+        <p className="note" style={{ marginTop: -6, marginBottom: 14 }}>
+          Модели: генератор — <b>{models.generator.model || models.generator.error}</b> · разбор — <b>{models.analyst?.model || models.analyst?.error}</b>
+          {models.analyst?.priceOut ? <> · цена разбора ≈ ${models.analyst.priceIn}/${models.analyst.priceOut} за 1 млн токенов (вход/выход)</> : null}
+        </p>
+      ) : null}
       <div className="panel">
         <h2>Новая партия</h2>
         <div className="field">

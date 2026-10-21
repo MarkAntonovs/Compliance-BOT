@@ -85,7 +85,7 @@ export default function PartnerPage() {
 
   async function check() {
     setBusy(true); setErr(""); setRes(null);
-    const body = { country, regcode: country === "LV" ? picked?.regcode : undefined, name: picked?.name || q, notes, extraNames: extra };
+    const body = { country, regcode: country === "LV" ? (picked?.regcode || (/^\d{11}$/.test(q.trim()) ? q.trim() : undefined)) : undefined, name: picked?.name || q, notes, extraNames: extra };
     const d = await (await fetch("/api/partner/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json().catch(e => ({ ok: false, error: String(e) }));
     setBusy(false);
     if (d.registry !== undefined) { setRes(d); if (d.id) history.replaceState(null, "", "?check=" + d.id); loadChecks(); }

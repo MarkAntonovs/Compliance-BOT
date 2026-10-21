@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { XMLParser } from "fast-xml-parser";
 import { db } from "./db";
 import { normName, coverage } from "./names";
+import { why } from "./lvregister";
 
 // Official sanctions lists, downloaded straight from the publishers and kept in Postgres.
 // Refreshed daily by Vercel cron (vercel.json) and by the button on the "Партнёр" page.
@@ -25,7 +26,9 @@ export type Entry = { ref: string; kind: "person" | "entity" | "vessel" | "other
 
 async function getText(url: string): Promise<string> {
   if (url.startsWith("/")) return readFile(url, "utf8"); // local file, for testing
-  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (compatible; compliance-bot/1.0)" }, signal: AbortSignal.timeout(150_000) });
+  let res: Response;
+  try { res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 (compatible; compliance-bot/1.0)" }, signal: AbortSignal.timeout(150_000) }); }
+  catch (e) { throw new Error(`${url.split("?")[0]} недоступен: ${why(e)}`); }
   if (!res.ok) throw new Error(`${url.split("?")[0]} ответил ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
   return new TextDecoder("utf-8").decode(buf);

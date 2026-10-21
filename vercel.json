@@ -1,4 +1,5 @@
 {
+  "regions": ["fra1"],
   "crons": [
     { "path": "/api/sanctions/cron?list=eu", "schedule": "10 4 * * *" },
     { "path": "/api/sanctions/cron?list=un", "schedule": "20 4 * * *" },

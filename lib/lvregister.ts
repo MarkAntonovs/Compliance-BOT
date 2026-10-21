@@ -10,14 +10,24 @@ const RES = {
 let membersRes: string | null | undefined = process.env.LV_RES_MEMBERS; // found automatically if not set
 
 type Row = Record<string, unknown>;
+
+// "fetch failed" hides the real reason (DNS, TLS certificate, blocked IP…) in error.cause.
+export function why(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  const c = (e as { cause?: { code?: string; message?: string } }).cause;
+  return [e.message, c?.code, c?.message].filter(Boolean).join(" — ");
+}
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 
 async function api(action: string, params: Record<string, string>) {
   const u = new URL(`${BASE}/${action}`);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-  let res: Response;
-  try { res = await fetch(u, { signal: AbortSignal.timeout(25_000), headers: { "user-agent": "compliance-bot/1.0" } }); }
-  catch (e) { throw new Error("Реестр Латвии (data.gov.lv) недоступен: " + (e instanceof Error ? e.message : String(e))); }
+  let res: Response | null = null, last: unknown = null;
+  for (let i = 0; i < 2 && !res; i++) {
+    try { res = await fetch(u, { signal: AbortSignal.timeout(25_000), headers: { "user-agent": "Mozilla/5.0 (compatible; compliance-bot/1.0)", accept: "application/json" } }); }
+    catch (e) { last = e; }
+  }
+  if (!res) throw new Error("Реестр Латвии (data.gov.lv) недоступен: " + why(last));
   if (!res.ok) throw new Error(`Реестр Латвии (data.gov.lv) ответил ${res.status}`);
   const j = await res.json();
   if (!j.success) throw new Error("Реестр Латвии: " + JSON.stringify(j.error || "ошибка").slice(0, 200));

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { onServer } from "@/lib/settings";
-import { analyse, ANALYST_VERSION } from "@/lib/agents";
+import { analyse, ANALYST_VERSION, formatError } from "@/lib/agents";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   try {
     const r = await analyse({ facts: String(facts), question: String(question), client_type: clientType }, ["ru", "en", "lv"].includes(lang) ? lang : "ru");
     return NextResponse.json({ ok: !!r.data, data: r.data, raw: r.data ? undefined : r.raw, model: r.model, costUsd: r.costUsd, latencyMs: r.latencyMs, version: ANALYST_VERSION,
-      error: r.data ? undefined : "Модель ответила не в формате JSON." });
+      error: formatError(r) || undefined });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) });
   }

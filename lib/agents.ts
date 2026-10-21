@@ -75,7 +75,25 @@ export function parseJson<T>(text: string): T | null {
   const a = text.indexOf("{"), b = text.lastIndexOf("}");
   if (a >= 0 && b > a) tries.push(text.slice(a, b + 1));
   for (const t of tries) { try { return JSON.parse(t) as T; } catch { /* next */ } }
+  // Repair: raw line breaks or tabs inside strings make JSON invalid; escape them and try again.
+  for (const t of tries) { try { return JSON.parse(escapeControlInStrings(t)) as T; } catch { /* next */ } }
   return null;
+}
+
+function escapeControlInStrings(t: string) {
+  let out = "", inStr = false, esc = false;
+  for (const ch of t) {
+    if (inStr) {
+      if (esc) { esc = false; out += ch; continue; }
+      if (ch === "\\") { esc = true; out += ch; continue; }
+      if (ch === '"') { inStr = false; out += ch; continue; }
+      if (ch === "\n") { out += "\\n"; continue; }
+      if (ch === "\r") { out += "\\r"; continue; }
+      if (ch === "\t") { out += "\\t"; continue; }
+      out += ch;
+    } else { if (ch === '"') inStr = true; out += ch; }
+  }
+  return out;
 }
 
 const LANG = { ru: "Russian", en: "English", lv: "Latvian" } as const;
@@ -100,6 +118,8 @@ METHOD
 5. Give concrete actions the client should take, in order.
 6. If a bank request is part of the facts, draft a short, truthful reply to the bank in the bank's language, answering point by point; otherwise leave reply_to_bank empty.
 7. Never help hide, misstate or restructure facts to avoid sanctions, reporting or tax. If the client wants that, explain calmly why it is not possible and what the lawful path is.
+
+LENGTH — keep the answer compact, it is read by a client, not a court: summary up to 5 sentences; at most 6 findings, each explanation up to 3 sentences; at most 8 documents; at most 7 actions; at most 6 questions; reply_to_bank up to 200 words; at most 5 open questions. Prefer the most important points over completeness.
 
 TONE: calm and practical. Do not tell the client "you violated"; explain what is prohibited and why, and what to do now. Do not downplay real risks.
 
@@ -169,11 +189,11 @@ ${input.how_right}
 Write in Russian. Reply with only one JSON object: {"title":"","body":""}`;
 }
 
-async function run<T>(prompt: string): Promise<{ data: T | null; raw: string; costUsd: number; latencyMs: number; model: string }> {
+async function run<T>(prompt: string): Promise<{ data: T | null; raw: string; costUsd: number; latencyMs: number; model: string; truncated: boolean }> {
   const { m, key } = await activeModel();
   const t0 = Date.now();
   const r = await callModel(m.provider, key, m.model, prompt);
-  return { data: parseJson<T>(r.text), raw: r.text, costUsd: cost(m, r), latencyMs: Date.now() - t0, model: m.label || m.model };
+  return { data: parseJson<T>(r.text), raw: r.text, costUsd: cost(m, r), latencyMs: Date.now() - t0, model: m.label || m.model, truncated: !!r.truncated };
 }
 
 export async function analyse(c: Pick<CaseData, "facts" | "question" | "client_type">, lang: "ru" | "en" | "lv" = "ru") {
@@ -193,4 +213,10 @@ export async function generateCase(topicId: string, existingTitles: string[], se
 export async function draftRule(input: Parameters<typeof ruleDrafterPrompt>[0]) {
   const rules = await activeRules();
   return run<{ title: string; body: string }>(ruleDrafterPrompt(input, rules));
+}
+
+export function formatError(r: { data: unknown; truncated: boolean; raw: string }) {
+  if (r.data) return null;
+  if (r.truncated) return "Ответ модели слишком длинный и обрезан — JSON не закончен.";
+  return r.raw.trim() ? "Модель ответила не в формате JSON." : "Модель вернула пустой ответ.";
 }

@@ -10,7 +10,7 @@ const OPENAI_COMPAT: Record<Exclude<ProviderId, "anthropic" | "demo">, string> =
   openrouter: "https://openrouter.ai/api/v1",
 };
 
-export type CallResult = { text: string; tokensIn: number; tokensOut: number; providerCostUsd?: number };
+export type CallResult = { text: string; tokensIn: number; tokensOut: number; providerCostUsd?: number; truncated?: boolean };
 
 const TIMEOUT_MS = 180_000;
 
@@ -25,7 +25,7 @@ async function net(url: string, init: RequestInit): Promise<Response> {
     throw new Error(`Нет связи с ${new URL(url).host}: ${why}. Проверь интернет, VPN или файрвол.`);
   }
 }
-const MAX_OUT = 8000;
+const MAX_OUT = 12000;
 
 async function asError(res: Response): Promise<Error> {
   let detail = "";
@@ -84,7 +84,7 @@ export async function callModel(provider: ProviderId, apiKey: string, model: str
     if (!res.ok) throw await asError(res);
     const j = await res.json();
     const text = (j.content || []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("");
-    return { text, tokensIn: j.usage?.input_tokens ?? 0, tokensOut: j.usage?.output_tokens ?? 0 };
+    return { text, tokensIn: j.usage?.input_tokens ?? 0, tokensOut: j.usage?.output_tokens ?? 0, truncated: j.stop_reason === "max_tokens" };
   }
 
   const base = OPENAI_COMPAT[provider];
@@ -105,6 +105,7 @@ export async function callModel(provider: ProviderId, apiKey: string, model: str
     tokensIn: j.usage?.prompt_tokens ?? 0,
     tokensOut: j.usage?.completion_tokens ?? 0,
     providerCostUsd: typeof j.usage?.cost === "number" ? j.usage.cost : undefined,
+    truncated: j.choices?.[0]?.finish_reason === "length",
   };
 }
 

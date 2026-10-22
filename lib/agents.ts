@@ -162,6 +162,7 @@ TOPIC: ${t.brief}
 REQUIREMENTS
 - Fictional: invent all people and company names. Never use real people or real companies.
 - Realistic and specific: concrete countries, percentages, dates, amounts, registry facts, documents, business activities (with NACE codes where natural).
+- Legally accurate for each country: use only company forms, governing bodies and positions that really exist there and appear in that country's register. A Russian OOO normally has participants and a general director (генеральный директор, the only officer shown in EGRUL); do not give it a Latvian-style "valdes loceklis"/board member. A Latvian SIA has a valde (board members) and participants; registry extracts look like the real ones (Uzņēmumu reģistrs, EGRUL, Companies House…). Use OKVED codes for Russian companies and NACE codes for EU ones.
 - Contain 1–3 real compliance issues a skilled analyst must spot, plus some normal facts that are not issues. Do not label the issues inside the facts.
 - facts: written from the CLIENT's side — what the client knows and has (their situation, ownership, directorships, payments, documents, extracts, and if relevant the request letter they received from the bank). 150–400 words.
 - question: what the client asks in their own words, 1–3 sentences.

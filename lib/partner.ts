@@ -1,6 +1,6 @@
 import { run, formatError } from "./agents";
 import { activeRules } from "./db";
-import { companyProfile, type LvProfile } from "./lvregister";
+import { companyProfile, findCompanies, type LvProfile } from "./lvregister";
 import { screen, listStatus, type Screened } from "./sanctions";
 import { normName } from "./names";
 
@@ -100,15 +100,37 @@ export async function checkPartner(input: PartnerInput) {
 
   // 1. Registry
   let reg: LvProfile | null = null;
-  if (input.country === "LV" && input.regcode) {
-    try { reg = await companyProfile(input.regcode); warnings.push(...reg.warnings); }
-    catch (e) { warnings.push(e instanceof Error ? e.message : String(e)); }
+  const owners: Party[] = []; // people and companies one level up (owners of a Latvian company that owns the partner)
+  if (input.country === "LV") {
+    try {
+      let code = input.regcode;
+      if (!code && input.name) {
+        const found = await findCompanies(input.name);
+        const exact = found.filter(c => normName(c.name) === normName(input.name));
+        const pick = exact.length === 1 ? exact[0] : found.length === 1 ? found[0] : null;
+        if (pick) code = pick.regcode;
+        else warnings.push(found.length ? `В реестре Латвии несколько компаний по запросу «${input.name}» — нажмите «Найти» и выберите нужную. Люди из реестра не проверены.` : `Компания «${input.name}» не найдена в реестре Латвии — люди из реестра не проверены.`);
+      }
+      if (code) {
+        reg = await companyProfile(code);
+        warnings.push(...reg.warnings);
+        // Owners that are Latvian companies: look one level up, so a sanctioned owner behind a holding is not missed.
+        const holdings = reg.members.filter(m => /^\d{11}$/.test(m.details.legal_entity_registration_number || "")).slice(0, 5);
+        for (const h of holdings) {
+          try {
+            const up = await companyProfile(h.details.legal_entity_registration_number);
+            for (const p of [...up.ubos, ...up.members, ...up.officers]) owners.push({ name: p.name, role: `${p.role} в ${h.name} (владелец партнёра)`, country: p.details.nationality || "" });
+          } catch (e) { warnings.push(`Владельцы ${h.name} не получены: ${e instanceof Error ? e.message : e}`); }
+        }
+      }
+    } catch (e) { warnings.push("Реестр Латвии: " + (e instanceof Error ? e.message : String(e)) + " Люди из реестра не проверены."); }
   }
 
   // 2. Everyone connected to the partner
   const parties: Party[] = [{ name: reg?.company.name || input.name, role: "партнёр", country: input.country === "LV" ? "LV" : "" }];
   if (reg) for (const p of [...reg.officers, ...reg.ubos, ...reg.members])
     parties.push({ name: p.name, role: p.role, country: p.details.nationality || "", birth_date: p.details.birth_date || "" });
+  parties.push(...owners);
   for (const line of (input.extraNames || "").split("\n").map(x => x.trim()).filter(Boolean).slice(0, 30))
     parties.push({ name: line, role: "указано вручную" });
   if ((input.notes || "").trim().length > 30) {

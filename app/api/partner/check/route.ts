@@ -24,10 +24,10 @@ export async function POST(req: Request) {
     const p = await db();
     const title = r.registry?.company.name || input.name || input.regcode!;
     const ins = await p.query(
-      `insert into partner_checks (title, input, registry, parties, hits, report, model, raw, error, cost_usd)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id, created_at`,
+      `insert into partner_checks (title, input, registry, parties, hits, report, model, raw, error, cost_usd, flags)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning id, created_at`,
       // jsonb: pass JSON text — node-pg would turn JS arrays into Postgres arrays
-      [title, JSON.stringify({ ...input, warnings: r.warnings, lists: r.lists }), JSON.stringify(r.registry), JSON.stringify(r.parties), JSON.stringify(r.screened), JSON.stringify(r.report), r.model, r.raw, r.error, r.costUsd]);
+      [title, JSON.stringify({ ...input, registry: undefined, warnings: r.warnings, lists: r.lists, extracted: r.extracted }), JSON.stringify(r.registry), JSON.stringify(r.parties), JSON.stringify(r.screened), JSON.stringify(r.report), r.model, r.raw, r.error, r.costUsd, JSON.stringify(r.flags)]);
     return NextResponse.json({ ok: !r.error, id: ins.rows[0].id, created_at: ins.rows[0].created_at, title, ...r, raw: undefined });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });

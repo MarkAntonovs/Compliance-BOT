@@ -101,7 +101,8 @@ create table if not exists partner_checks (
 `;
 
 // Fuzzy name search for sanctions screening (Neon supports pg_trgm).
-const TRGM = `create extension if not exists pg_trgm;
+const TRGM = `alter table partner_checks add column if not exists flags jsonb;
+create extension if not exists pg_trgm;
 create index if not exists sanction_names_trgm on sanction_names using gin (norm gin_trgm_ops);`;
 
 // Andrej's first rules, added once when the rules table is empty.

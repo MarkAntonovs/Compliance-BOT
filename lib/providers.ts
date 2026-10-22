@@ -49,7 +49,10 @@ async function demoAnswer(prompt: string): Promise<CallResult> {
       facts: `ДЕМО. Клиент — гражданин Латвии, резидент Риги. С 2019 года является директором и владеет 60% ООО «Строй-${n}» (Россия, ОКВЭД 41.20 — строительство жилых и нежилых зданий). В банк поступил запрос: подтвердить роль клиента в ООО «Строй-${n}» и источник регулярных поступлений 4 000 EUR в месяц от этой компании.`,
       question: "Банк спрашивает про мою российскую фирму. Что ответить?", hidden_issues: ["ДЕМО: директорство гражданина ЕС в российской компании — ст. 5n", "ДЕМО: контроль над компанией со строительной деятельностью — ст. 8a"] };
   } else if (prompt.startsWith("TASK:EXTRACT_PARTIES")) {
-    data = { parties: [{ name: "ДЕМО Иванов Иван Иванович", role: "director", share: "", country: "RU", birth_date: "" }] };
+    data = { parties: [{ name: "ДЕМО Сидоров Олег Петрович", kind: "person", role: "owner", share: "100%", nationality: "RU", residence: "RU" },
+        { name: "ДЕМО Ivars Kalniņš", kind: "person", role: "director", nationality: "LV" }],
+      links: [{ person: "ДЕМО Ivars Kalniņš", company: "ООО ДЕМО-Строй", company_country: "RU", role: "director", share: "", activity: "41.20 строительство" }],
+      goods: ["станки ЧПУ"], trade_countries: ["Kazakhstan"], partner_registered: "2023-05-10" };
   } else if (prompt.startsWith("TASK:PARTNER_REPORT")) {
     data = { summary: "Это демо-отчёт без ИИ: он показывает, как выглядит результат. Совпадения и данные реестра ниже — настоящие.", risk_level: "medium", recommendation: "need_more_info",
       sanctions_matches: [], ownership: "ДЕМО: структура владения", findings: [{ title: "ДЕМО: находка", explanation: "Здесь будет объяснение.", legal_basis: "Рег. 269/2014", severity: "medium" }],

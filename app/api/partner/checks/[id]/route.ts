@@ -11,7 +11,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     if (!rows[0]) return NextResponse.json({ ok: false, error: "Не найдено" }, { status: 404 });
     const c = rows[0];
     return NextResponse.json({ ok: true, id: c.id, title: c.title, created_at: c.created_at, registry: c.registry, parties: c.parties, screened: c.hits,
-      report: c.report, error: c.error, costUsd: Number(c.cost_usd), model: c.model, warnings: c.input?.warnings || [], lists: c.input?.lists || [], input: c.input });
+      report: c.report, flags: c.flags || [], error: c.error, costUsd: Number(c.cost_usd), model: c.model, warnings: c.input?.warnings || [], lists: c.input?.lists || [], input: c.input });
   } catch (e) { return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 }); }
 }
 

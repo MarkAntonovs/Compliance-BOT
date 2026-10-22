@@ -3,11 +3,12 @@ import { XMLParser } from "fast-xml-parser";
 import { db } from "./db";
 import { normName, coverage } from "./names";
 import { why } from "./lvregister";
+import { annexXix } from "./annex";
 
 // Official sanctions lists, downloaded straight from the publishers and kept in Postgres.
 // Refreshed daily by Vercel cron (vercel.json) and by the button on the "Партнёр" page.
 
-export type ListId = "eu" | "un" | "ofac" | "uk";
+export type ListId = "eu" | "un" | "ofac" | "uk" | "xix";
 export const LISTS: { id: ListId; label: string; url: string; extra?: string; info: string }[] = [
   { id: "eu", label: "ЕС — консолидированный список (FSF)", info: "https://data.europa.eu/data/datasets/consolidated-list-of-persons-groups-and-entities-subject-to-eu-financial-sanctions",
     url: process.env.SANCTIONS_EU_URL || "https://webgate.ec.europa.eu/fsd/fsf/public/files/csvFullSanctionsList_1_1/content?token=dG9rZW4tMjAxNw" },
@@ -18,6 +19,7 @@ export const LISTS: { id: ListId; label: string; url: string; extra?: string; in
     extra: process.env.SANCTIONS_OFAC_ALT_URL || "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ALT.CSV" },
   { id: "uk", label: "Великобритания — UK Sanctions List", info: "https://www.gov.uk/government/publications/the-uk-sanctions-list",
     url: process.env.SANCTIONS_UK_URL || "https://sanctionslist.fcdo.gov.uk/docs/UK-Sanctions-List.csv" },
+  { id: "xix", label: "ЕС — Рег. 833/2014, Приложение XIX (запрет сделок, ст. 5aa)", info: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:02014R0833", url: "" },
 ];
 
 export type Entry = { ref: string; kind: "person" | "entity" | "vessel" | "other"; name: string; names: string[]; programme: string; details: Record<string, string> };
@@ -174,6 +176,7 @@ function parseUk(text: string): Entry[] {
 export async function downloadList(id: ListId): Promise<Entry[]> {
   const l = LISTS.find(x => x.id === id);
   if (!l) throw new Error("Неизвестный список " + id);
+  if (id === "xix") return annexXix();
   if (id === "eu") return parseEu(await getText(l.url));
   if (id === "un") return parseUn(await getText(l.url));
   if (id === "ofac") { const [a, b] = await Promise.all([getText(l.url), getText(l.extra!)]); return parseOfac(a, b); }
@@ -189,7 +192,7 @@ export async function refreshList(id: ListId) {
   let entries: Entry[];
   try {
     entries = await downloadList(id);
-    if (entries.length < 50) throw new Error(`подозрительно мало записей (${entries.length}) — список не заменён`);
+    if (entries.length < (id === "xix" ? 5 : 50)) throw new Error(`подозрительно мало записей (${entries.length}) — список не заменён`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await p.query(`insert into sanction_lists (id, label, source_url, error, checked_at) values ($1,$2,$3,$4,now())
@@ -226,7 +229,9 @@ export async function refreshList(id: ListId) {
 
 export async function listStatus() {
   const p = await db();
-  const { rows } = await p.query("select * from sanction_lists");
+  let { rows } = await p.query("select * from sanction_lists");
+  // Annex XIX is kept in code: load it automatically the first time.
+  if (!rows.some(r => r.id === "xix" && r.entries)) { await refreshList("xix").catch(() => {}); rows = (await p.query("select * from sanction_lists")).rows; }
   return LISTS.map(l => ({ id: l.id, label: l.label, info: l.info, ...(rows.find(r => r.id === l.id) || {}) }));
 }
 

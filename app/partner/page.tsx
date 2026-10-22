@@ -16,10 +16,11 @@ type Report = {
   ownership?: string; findings?: { title: string; explanation: string; legal_basis?: string; severity: string }[];
   documents_to_request?: { document: string; why: string }[]; actions?: string[]; open_questions?: string[];
 };
-type Result = { id?: number; title?: string; created_at?: string; registry: Registry; screened: Screened[]; report: Report | null; error?: string | null; warnings: string[]; costUsd: number; model?: string; lists?: { label: string; updated_at?: string; entries?: number }[] };
+type Flag = { code: string; title: string; evidence: string; severity: "low" | "medium" | "high"; basis?: string };
+type Result = { flags?: Flag[]; id?: number; title?: string; created_at?: string; registry: Registry; screened: Screened[]; report: Report | null; error?: string | null; warnings: string[]; costUsd: number; model?: string; lists?: { label: string; updated_at?: string; entries?: number }[] };
 type CheckRow = { id: number; title: string; created_at: string; risk_level?: string; recommendation?: string; with_hits: number; error?: string };
 
-const LIST_SHORT: Record<string, string> = { eu: "ЕС", un: "ООН", ofac: "OFAC", uk: "UK" };
+const LIST_SHORT: Record<string, string> = { eu: "ЕС", un: "ООН", ofac: "OFAC", uk: "UK", xix: "ЕС Прил. XIX" };
 const REC: Record<string, [string, string]> = {
   proceed: ["Можно работать", "ok"], proceed_with_care: ["Можно, с осторожностью", "warn"],
   need_more_info: ["Нужно больше информации", "warn"], do_not_proceed: ["Не рекомендуется", "bad"],
@@ -222,6 +223,22 @@ function ResultView({ r }: { r: Result }) {
         </div>
         {arr(r.warnings).length ? <div className="warnbox" style={{ marginTop: 10 }}><ul className="plain">{r.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul></div> : null}
         {r.error ? <div className="alert" style={{ marginTop: 10 }}>Вывод ИИ не получился: {r.error}. Совпадения и данные реестра ниже — настоящие.</div> : null}
+        {arr(r.flags).length ? (
+          <div className="out" style={{ marginTop: 12 }}>
+            <section>
+              <h3>Признаки риска <span className="count">{r.flags!.length}</span> <span className="note" style={{ fontWeight: 400 }}>— найдены правилами, даже если человека нет в списках</span></h3>
+              <div className="items">
+                {r.flags!.map((f, i) => (
+                  <div className="item" key={i}>
+                    <div className="item-head"><span className="item-title">{f.title}</span><span className={"pill " + sev(f.severity)}>{RISK[f.severity]}</span></div>
+                    <p style={{ margin: 0, fontSize: ".92rem" }}>{f.evidence}</p>
+                    {f.basis ? <p className="note" style={{ margin: 0 }}>Основание: {f.basis}</p> : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : null}
         {rep ? (
           <div className="out" style={{ marginTop: 12 }}>
             <section>

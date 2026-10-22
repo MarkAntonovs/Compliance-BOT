@@ -49,6 +49,7 @@ export default function PartnerPage() {
   const [picked, setPicked] = useState<Company | null>(null);
   const [notes, setNotes] = useState("");
   const [extra, setExtra] = useState("");
+  const [detailed, setDetailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [res, setRes] = useState<Result | null>(null);
@@ -101,7 +102,7 @@ export default function PartnerPage() {
     const name = picked?.name || q;
     // Register data is collected here in the browser (data.gov.lv does not answer cloud servers).
     const registry = country === "LV" ? { ...(await gatherRegistry({ regcode, name })), source: "browser" as const } : undefined;
-    const body = { country, regcode, name, notes, extraNames: extra, registry };
+    const body = { country, regcode, name, notes, extraNames: extra, registry, detailed };
     const d = await (await fetch("/api/partner/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json().catch(e => ({ ok: false, error: String(e) }));
     setBusy(false);
     if (d.registry !== undefined) { setRes(d); if (d.id) history.replaceState(null, "", "?check=" + d.id); loadChecks(); }
@@ -182,6 +183,7 @@ export default function PartnerPage() {
           </div>
         </details>
         <div className="actions">
+          <label className="checkrow"><input type="checkbox" checked={detailed} onChange={e => setDetailed(e.target.checked)} /> <span>Подробный вывод (Sonnet, дороже)</span></label>
           <button type="button" className="btn" disabled={!canCheck} onClick={check}>{busy ? "Ищу в интернете и проверяю… (1–2 минуты)" : "Проверить партнёра"}</button>
           {!loaded ? <span className="note">Сначала загрузите санкционные списки.</span> : country === "LV" && !picked ? <span className="note">Найдите и выберите компанию — тогда проверим и её людей из реестра.</span> : null}
         </div>

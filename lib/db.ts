@@ -106,18 +106,31 @@ create extension if not exists pg_trgm;
 create index if not exists sanction_names_trgm on sanction_names using gin (norm gin_trgm_ops);`;
 
 // Andrej's first rules, added once when the rules table is empty.
-const SEED_RULES: { title: string; body: string }[] = [
+const SEED_RULES: { key: string; title: string; body: string }[] = [
   {
+    key: "R1",
     title: "Контроль над российской компанией с деятельностью по ст. 5n → ст. 8a",
     body: "Если человек, относящийся к ЕС (гражданин или резидент страны ЕС), владеет или контролирует компанию в России, а эта компания занимается деятельностью, запрещённой ст. 5n Регламента 833/2014 (например, строительство), на самого человека распространяется ст. 8a (best efforts): он не обеспечивает, чтобы подконтрольное предприятие не нарушало санкции ЕС. Клиенты часто этого не понимают и сами сообщают банку о таком контроле. Всегда проверяй вид деятельности российских компаний, которые клиент контролирует.",
   },
   {
+    key: "R2",
     title: "Директор российской компании → ст. 5n",
     body: "Если человек, относящийся к ЕС, является директором компании в России, это само по себе нарушение по ст. 5n: как директор он оказывает компании управленческие, юридические и финансовые услуги. Всегда проверяй директорства клиента и его PLG в российских компаниях.",
   },
   {
+    key: "R3",
     title: "Как говорить с клиентом о нарушении санкций",
     body: "Не пиши «вы нарушили» и не пугай формулировками в лоб. Спокойно объясни, что такая ситуация запрещена санкциями ЕС и почему. Сразу предложи решение: выйти из состава директоров и прекратить юридический контроль над предприятием. Объясни последствия: если продолжать быть директором или контролировать предприятие — высокий риск нарушения. Если вопрос уже задал банк, помоги клиенту ответить, что он собирается выйти из состава директоров и больше не будет контролировать предприятие.",
+  },
+  {
+    key: "R4",
+    title: "Не отправлять клиента к юристу вместо ответа",
+    body: "Не строй рекомендации вокруг «обратитесь к юристу» или «делайте это под руководством юриста» — ценность бота в том, что он сам объясняет ситуацию и даёт решение. Объясни клиенту, что его ситуация, скорее всего, нарушает санкции и почему, затем перечисли его варианты (например, выйти из директоров, прекратить услуги, прекратить контроль) и последствия каждого. Не советуй откладывать ответ банку до консультации с юристом — помоги подготовить ответ сам. Юриста упоминай только в конце, одной фразой как дисклеймер: «при необходимости вы всегда можете дополнительно обратиться к специалисту по санкциям».",
+  },
+  {
+    key: "R5",
+    title: "Только реальные риски и понятным языком",
+    body: "Выноси в риски только то, что прямо следует из фактов клиента или на что есть конкретное подозрение. Гипотетические риски («а вдруг клиенты частично принадлежат государству», «а вдруг партнёр под санкциями») без признаков в фактах не пиши вообще — ни отдельным пунктом, ни в вопросах. Каждый риск пиши так, чтобы его понял человек без юридического образования: что именно в его ситуации вызывает вопрос → почему это важно для банка или по санкциям → что ему сделать. Без канцелярита и непонятных отсылок вроде «по продуктам других пакетов» или «добавляются риски по ст. 5aa» без объяснения.",
   },
 ];
 
@@ -148,8 +161,14 @@ export async function db() {
       await p.query(SCHEMA);
       await p.query(TRGM);
       const { rows } = await p.query("select count(*)::int as n from rules");
-      if (rows[0].n === 0) {
-        for (const r of SEED_RULES) await p.query("insert into rules (title, body, status) values ($1, $2, 'active')", [r.title, r.body]);
+      // Rules approved by Andrej in chat are added once (tracked in seeded_rules, so a rule deleted on the site does not come back).
+      await p.query("create table if not exists seeded_rules (key text primary key, added_at timestamptz not null default now())");
+      const seeded = new Set((await p.query("select key from seeded_rules")).rows.map((r: { key: string }) => r.key));
+      for (const r of SEED_RULES) {
+        if (seeded.has(r.key)) continue;
+        const exists = (await p.query("select 1 from rules where title = $1", [r.title])).rowCount;
+        if (!exists && (Number(r.key.slice(1)) > 3 || rows[0].n === 0)) await p.query("insert into rules (title, body, status) values ($1, $2, 'active')", [r.title, r.body]);
+        await p.query("insert into seeded_rules (key) values ($1) on conflict do nothing", [r.key]);
       }
       // Andrej's reference scenario, added once.
       await p.query("insert into cases (id, topic, title, data, source) values ($1,'russia',$2,$3,'expert') on conflict (id) do nothing",

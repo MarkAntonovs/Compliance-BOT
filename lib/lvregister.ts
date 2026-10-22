@@ -1,7 +1,9 @@
+import { normName } from "./names";
+
 // Latvian Enterprise Register (Uzņēmumu reģistrs) open data on data.gov.lv — free, no key.
 // CKAN datastore API: companies, officers (amatpersonas), beneficial owners (PLG), members (dalībnieki).
 
-const BASE = process.env.LV_DATA_API || "https://data.gov.lv/dati/api/3/action";
+const BASE = process.env.NEXT_PUBLIC_LV_DATA_API || process.env.LV_DATA_API || "https://data.gov.lv/dati/api/3/action";
 const RES = {
   companies: process.env.LV_RES_COMPANIES || "25e80bf3-f107-4ab4-89ef-251b5b9374e9",
   officers: process.env.LV_RES_OFFICERS || "e665114a-73c2-4375-9470-55874b4cfa6b",
@@ -113,4 +115,38 @@ export async function companyProfile(regcode: string): Promise<LvProfile> {
       details: pick(r, ["entity_type", "number_of_shares", "share_nominal_value", "share_currency", "birth_date", "legal_entity_registration_number", "registered_on"]) })).filter(x => x.name),
     warnings,
   };
+}
+
+// Everything the partner check needs from the register. Runs in the browser (data.gov.lv blocks cloud servers) or on the server.
+export type Gathered = { reg: LvProfile | null; owners: { name: string; role: string; country?: string }[]; warnings: string[]; source?: "browser" | "server" };
+
+export async function gatherRegistry(input: { regcode?: string; name?: string }): Promise<Gathered> {
+  const warnings: string[] = [];
+  const owners: Gathered["owners"] = [];
+  let reg: LvProfile | null = null;
+  try {
+    let code = input.regcode;
+    const name = (input.name || "").trim();
+    if (!code && /^\d{11}$/.test(name)) code = name;
+    if (!code && name) {
+      const found = await findCompanies(name);
+      const exact = found.filter(c => normName(c.name) === normName(name));
+      const pick = exact.length === 1 ? exact[0] : found.length === 1 ? found[0] : null;
+      if (pick) code = pick.regcode;
+      else warnings.push(found.length ? `В реестре Латвии несколько компаний по запросу «${name}» — нажмите «Найти» и выберите нужную. Люди из реестра не проверены.` : `Компания «${name}» не найдена в реестре Латвии — люди из реестра не проверены.`);
+    }
+    if (code) {
+      reg = await companyProfile(code);
+      warnings.push(...reg.warnings);
+      // Owners that are Latvian companies: look one level up, so a sanctioned owner behind a holding is not missed.
+      const holdings = reg.members.filter(m => /^\d{11}$/.test(m.details.legal_entity_registration_number || "")).slice(0, 5);
+      for (const h of holdings) {
+        try {
+          const up = await companyProfile(h.details.legal_entity_registration_number);
+          for (const p of [...up.ubos, ...up.members, ...up.officers]) owners.push({ name: p.name, role: `${p.role} в ${h.name} (владелец партнёра)`, country: p.details.nationality || "" });
+        } catch (e) { warnings.push(`Владельцы ${h.name} не получены: ${e instanceof Error ? e.message : e}`); }
+      }
+    }
+  } catch (e) { warnings.push((e instanceof Error ? e.message : String(e)) + " Люди из реестра не проверены."); }
+  return { reg, owners, warnings };
 }

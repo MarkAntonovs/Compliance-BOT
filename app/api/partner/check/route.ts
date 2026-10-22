@@ -15,6 +15,8 @@ export async function POST(req: Request) {
     notes: String(b.notes || "").slice(0, 20000),
     extraNames: String(b.extraNames || "").slice(0, 4000),
     lang: ["ru", "en", "lv"].includes(b.lang) ? b.lang : "ru",
+    registry: b.registry && typeof b.registry === "object" ? { reg: b.registry.reg || null, owners: Array.isArray(b.registry.owners) ? b.registry.owners.slice(0, 40) : [],
+      warnings: Array.isArray(b.registry.warnings) ? b.registry.warnings.map(String).slice(0, 10) : [] } : undefined,
   };
   if (!input.name && !input.regcode) return NextResponse.json({ ok: false, error: "Укажите партнёра" }, { status: 400 });
   try {

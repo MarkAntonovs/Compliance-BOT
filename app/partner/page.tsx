@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { findCompanies, gatherRegistry } from "@/lib/lvregister";
 
 // Partner check: Latvian register → everyone connected → official sanctions lists → AI risk report.
 
@@ -76,16 +77,26 @@ export default function PartnerPage() {
 
   async function find() {
     setSearching(true); setFound(null); setPicked(null); setErr("");
-    const d = await (await fetch("/api/partner/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ q }) })).json().catch(e => ({ ok: false, error: String(e) }));
+    // data.gov.lv blocks cloud servers, so ask it straight from the browser; the server is only a fallback.
+    let d: { ok: boolean; companies?: Company[]; error?: string };
+    try { d = { ok: true, companies: await findCompanies(q) }; }
+    catch (e1) {
+      d = await (await fetch("/api/partner/search", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ q }) })).json().catch(e => ({ ok: false, error: String(e) }));
+      if (!d.ok) d.error = `Реестр Латвии не ответил ни браузеру (${e1 instanceof Error ? e1.message : e1}), ни серверу (${d.error}).`;
+    }
     setSearching(false);
-    if (!d.ok) { setErr(d.error); return; }
+    if (!d.ok || !d.companies) { setErr(d.error || "Ошибка"); return; }
     setFound(d.companies);
     if (d.companies.length === 1) setPicked(d.companies[0]);
   }
 
   async function check() {
     setBusy(true); setErr(""); setRes(null);
-    const body = { country, regcode: country === "LV" ? (picked?.regcode || (/^\d{11}$/.test(q.trim()) ? q.trim() : undefined)) : undefined, name: picked?.name || q, notes, extraNames: extra };
+    const regcode = country === "LV" ? (picked?.regcode || (/^\d{11}$/.test(q.trim()) ? q.trim() : undefined)) : undefined;
+    const name = picked?.name || q;
+    // Register data is collected here in the browser (data.gov.lv does not answer cloud servers).
+    const registry = country === "LV" ? { ...(await gatherRegistry({ regcode, name })), source: "browser" as const } : undefined;
+    const body = { country, regcode, name, notes, extraNames: extra, registry };
     const d = await (await fetch("/api/partner/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json().catch(e => ({ ok: false, error: String(e) }));
     setBusy(false);
     if (d.registry !== undefined) { setRes(d); if (d.id) history.replaceState(null, "", "?check=" + d.id); loadChecks(); }

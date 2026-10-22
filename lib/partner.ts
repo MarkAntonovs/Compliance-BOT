@@ -1,12 +1,12 @@
 import { run, formatError } from "./agents";
 import { activeRules } from "./db";
-import { companyProfile, findCompanies, type LvProfile } from "./lvregister";
+import { gatherRegistry, type LvProfile, type Gathered } from "./lvregister";
 import { screen, listStatus, type Screened } from "./sanctions";
 import { normName } from "./names";
 
 // Partner check: registry data → everyone connected to the partner → sanctions screening → AI risk report.
 
-export type PartnerInput = { country: "LV" | "other"; regcode?: string; name: string; notes?: string; extraNames?: string; lang?: "ru" | "en" | "lv" };
+export type PartnerInput = { country: "LV" | "other"; regcode?: string; name: string; notes?: string; extraNames?: string; lang?: "ru" | "en" | "lv"; registry?: Gathered };
 export type Party = { name: string; role: string; country?: string; share?: string; birth_date?: string };
 
 export type PartnerReport = {
@@ -98,32 +98,13 @@ export async function checkPartner(input: PartnerInput) {
   let cost = 0;
   let model = "";
 
-  // 1. Registry
+  // 1. Registry. data.gov.lv blocks cloud servers, so the page fetches it in the user's browser and sends it here;
+  //    the server only tries itself when nothing came from the browser.
   let reg: LvProfile | null = null;
-  const owners: Party[] = []; // people and companies one level up (owners of a Latvian company that owns the partner)
+  let owners: Party[] = [];
   if (input.country === "LV") {
-    try {
-      let code = input.regcode;
-      if (!code && input.name) {
-        const found = await findCompanies(input.name);
-        const exact = found.filter(c => normName(c.name) === normName(input.name));
-        const pick = exact.length === 1 ? exact[0] : found.length === 1 ? found[0] : null;
-        if (pick) code = pick.regcode;
-        else warnings.push(found.length ? `В реестре Латвии несколько компаний по запросу «${input.name}» — нажмите «Найти» и выберите нужную. Люди из реестра не проверены.` : `Компания «${input.name}» не найдена в реестре Латвии — люди из реестра не проверены.`);
-      }
-      if (code) {
-        reg = await companyProfile(code);
-        warnings.push(...reg.warnings);
-        // Owners that are Latvian companies: look one level up, so a sanctioned owner behind a holding is not missed.
-        const holdings = reg.members.filter(m => /^\d{11}$/.test(m.details.legal_entity_registration_number || "")).slice(0, 5);
-        for (const h of holdings) {
-          try {
-            const up = await companyProfile(h.details.legal_entity_registration_number);
-            for (const p of [...up.ubos, ...up.members, ...up.officers]) owners.push({ name: p.name, role: `${p.role} в ${h.name} (владелец партнёра)`, country: p.details.nationality || "" });
-          } catch (e) { warnings.push(`Владельцы ${h.name} не получены: ${e instanceof Error ? e.message : e}`); }
-        }
-      }
-    } catch (e) { warnings.push("Реестр Латвии: " + (e instanceof Error ? e.message : String(e)) + " Люди из реестра не проверены."); }
+    const g = input.registry !== undefined ? input.registry : await gatherRegistry({ regcode: input.regcode, name: input.name });
+    reg = g.reg; owners = g.owners; warnings.push(...g.warnings);
   }
 
   // 2. Everyone connected to the partner

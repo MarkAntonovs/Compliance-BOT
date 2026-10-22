@@ -246,7 +246,7 @@ function scoreOf(q: string, cand: string, sim: number) {
   let s = sim;
   if (cov === 1 && qn >= 2) s = Math.max(s, cn === qn ? 0.97 : 0.9);
   else if (cov === 1 && qn === 1) s = Math.max(s, cn === 1 ? 0.9 : cn === 2 ? 0.72 : 0.6);
-  else if (cov >= 0.66 && qn >= 3) s = Math.max(s, 0.75);
+  // Two of three words (e.g. only first name + patronymic) is not enough: "Sidorov Oleg Petrovich" ≠ "Shpakov Oleg Petrovich".
   return Math.round(s * 100) / 100;
 }
 

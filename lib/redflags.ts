@@ -79,7 +79,8 @@ export function computeFlags(args: { reg: LvProfile | null; ex: Extracted | null
 
   // 4. Company created after the full-scale invasion.
   const reg = args.reg?.company.registered || args.ex?.partner_registered || "";
-  if (reg && reg >= "2022-02-24") add({ code: "new_company", severity: "low", basis: "типичный признак схем обхода санкций",
+  const recent = /^\d{4}$/.test(reg) ? Number(reg) >= 2022 : reg >= "2022-02-24";
+  if (reg && recent) add({ code: "new_company", severity: "low", basis: "типичный признак схем обхода санкций",
     title: "Компания создана после 24.02.2022", evidence: `Дата регистрации: ${reg}. Новые компании чаще используют для обхода санкций — нужен понятный бизнес-профиль.` });
 
   // 5. Trade through typical transit countries.

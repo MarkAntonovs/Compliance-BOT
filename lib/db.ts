@@ -106,7 +106,7 @@ create extension if not exists pg_trgm;
 create index if not exists sanction_names_trgm on sanction_names using gin (norm gin_trgm_ops);`;
 
 // Andrej's first rules, added once when the rules table is empty.
-const SEED_RULES: { key: string; title: string; body: string }[] = [
+const SEED_RULES: { key: string; v?: number; title: string; body: string }[] = [
   {
     key: "R1",
     title: "Контроль над российской компанией с деятельностью по ст. 5n → ст. 8a",
@@ -129,8 +129,9 @@ const SEED_RULES: { key: string; title: string; body: string }[] = [
   },
   {
     key: "R5",
+    v: 2,
     title: "Только реальные риски и понятным языком",
-    body: "Выноси в риски только то, что прямо следует из фактов клиента или на что есть конкретное подозрение. Гипотетические риски («а вдруг клиенты частично принадлежат государству», «а вдруг партнёр под санкциями») без признаков в фактах не пиши вообще — ни отдельным пунктом, ни в вопросах. Каждый риск пиши так, чтобы его понял человек без юридического образования: что именно в его ситуации вызывает вопрос → почему это важно для банка или по санкциям → что ему сделать. Без канцелярита и непонятных отсылок вроде «по продуктам других пакетов» или «добавляются риски по ст. 5aa» без объяснения.",
+    body: "Выноси в риски только то, что прямо следует из фактов клиента или на что есть конкретное подозрение. Гипотетические риски («а вдруг клиенты частично принадлежат государству», «а вдруг партнёр под санкциями») без признаков в фактах не пиши вообще — ни отдельным пунктом, ни в вопросах. Каждый риск пиши так, чтобы его понял человек без юридического образования: что именно в его ситуации вызывает вопрос → почему это важно для банка или по санкциям → что ему сделать. Без канцелярита и непонятных отсылок вроде «по продуктам других пакетов» или «добавляются риски по ст. 5aa» без объяснения. Не используй общие слова вроде «обход санкций», «признак риска» или «запрещённая деятельность» без расшифровки: всегда называй, какой именно запрет (по-человечески, статья — в скобках) и почему банк свяжет с ним именно этот факт. Пример: «Банк может решить, что оплата идёт через Армению, чтобы скрыть, что деньги приходят из России от компании, которой ваша SIA оказывает запрещённые консультации (ст. 5n). Такая схема похожа на обход санкций (ст. 12), поэтому банк спросит, чей это счёт и почему платят не напрямую».",
   },
 ];
 
@@ -162,13 +163,21 @@ export async function db() {
       await p.query(TRGM);
       const { rows } = await p.query("select count(*)::int as n from rules");
       // Rules approved by Andrej in chat are added once (tracked in seeded_rules, so a rule deleted on the site does not come back).
-      await p.query("create table if not exists seeded_rules (key text primary key, added_at timestamptz not null default now())");
-      const seeded = new Set((await p.query("select key from seeded_rules")).rows.map((r: { key: string }) => r.key));
+      await p.query("create table if not exists seeded_rules (key text primary key, added_at timestamptz not null default now()); alter table seeded_rules add column if not exists v int not null default 1");
+      const seeded = new Map((await p.query("select key, v from seeded_rules")).rows.map((r: { key: string; v: number }) => [r.key, r.v]));
       for (const r of SEED_RULES) {
-        if (seeded.has(r.key)) continue;
+        const v = r.v || 1, had = seeded.get(r.key);
+        if (had !== undefined) {
+          // A newer wording approved in chat replaces the text of the same rule on the site.
+          if (had < v) {
+            await p.query("update rules set body = $2, updated_at = now() where title = $1", [r.title, r.body]);
+            await p.query("update seeded_rules set v = $2 where key = $1", [r.key, v]);
+          }
+          continue;
+        }
         const exists = (await p.query("select 1 from rules where title = $1", [r.title])).rowCount;
         if (!exists && (Number(r.key.slice(1)) > 3 || rows[0].n === 0)) await p.query("insert into rules (title, body, status) values ($1, $2, 'active')", [r.title, r.body]);
-        await p.query("insert into seeded_rules (key) values ($1) on conflict do nothing", [r.key]);
+        await p.query("insert into seeded_rules (key, v) values ($1, $2) on conflict do nothing", [r.key, v]);
       }
       // Andrej's reference scenario, added once.
       await p.query("insert into cases (id, topic, title, data, source) values ($1,'russia',$2,$3,'expert') on conflict (id) do nothing",

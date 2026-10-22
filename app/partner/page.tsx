@@ -17,7 +17,11 @@ type Report = {
   documents_to_request?: { document: string; why: string }[]; actions?: string[]; open_questions?: string[];
 };
 type Flag = { code: string; title: string; evidence: string; severity: "low" | "medium" | "high"; basis?: string };
-type Result = { flags?: Flag[]; id?: number; title?: string; created_at?: string; registry: Registry; screened: Screened[]; report: Report | null; error?: string | null; warnings: string[]; costUsd: number; model?: string; lists?: { label: string; updated_at?: string; entries?: number }[] };
+type Web = { identity: string; country?: string; people: { name: string; role?: string; share?: string; nationality?: string; source?: string }[];
+  links: { person: string; company: string; company_country?: string; role?: string; share?: string; activity?: string; source?: string }[];
+  adverse: { title: string; summary: string; url?: string; date?: string }[]; sanctions_mentions: { name: string; context: string; url?: string }[]; not_found: string[] };
+type WebInfo = { searches: number; sources: { url: string; title: string }[]; costUsd: number; model: string; error?: string };
+type Result = { web?: Web | null; webInfo?: WebInfo | null; flags?: Flag[]; id?: number; title?: string; created_at?: string; registry: Registry; screened: Screened[]; report: Report | null; error?: string | null; warnings: string[]; costUsd: number; model?: string; lists?: { label: string; updated_at?: string; entries?: number }[] };
 type CheckRow = { id: number; title: string; created_at: string; risk_level?: string; recommendation?: string; with_hits: number; error?: string };
 
 const LIST_SHORT: Record<string, string> = { eu: "ЕС", un: "ООН", ofac: "OFAC", uk: "UK", xix: "ЕС Прил. XIX" };
@@ -112,7 +116,7 @@ export default function PartnerPage() {
       <div className="pagehead">
         <div>
           <h1>Проверка партнёра</h1>
-          <p className="sub">Находим компанию в реестре Латвии, берём её правление, участников и бенефициаров, проверяем всех по официальным санкционным спискам ЕС, ООН, США и Великобритании, и ИИ пишет вывод о рисках.</p>
+          <p className="sub">ИИ ищет партнёра в интернете (реестры, новости, связи владельцев), проверяет всех найденных людей и компании по официальным санкционным спискам ЕС, ООН, США и Великобритании и пишет вывод о рисках.</p>
         </div>
       </div>
 
@@ -178,7 +182,7 @@ export default function PartnerPage() {
           </div>
         </details>
         <div className="actions">
-          <button type="button" className="btn" disabled={!canCheck} onClick={check}>{busy ? "Проверяю… (до минуты)" : "Проверить партнёра"}</button>
+          <button type="button" className="btn" disabled={!canCheck} onClick={check}>{busy ? "Ищу в интернете и проверяю… (1–2 минуты)" : "Проверить партнёра"}</button>
           {!loaded ? <span className="note">Сначала загрузите санкционные списки.</span> : country === "LV" && !picked ? <span className="note">Найдите и выберите компанию — тогда проверим и её людей из реестра.</span> : null}
         </div>
         {err ? <div className="alert" style={{ marginTop: 12 }}>{err}</div> : null}
@@ -288,6 +292,8 @@ function ResultView({ r }: { r: Result }) {
         ) : null}
       </div>
 
+      {r.web || r.webInfo ? <WebView web={r.web || null} info={r.webInfo || null} /> : null}
+
       <div className="panel">
         <h2>Проверено по спискам: {arr(r.screened).length} имён, с совпадениями — {withHits.length}</h2>
         {arr(r.screened).length ? (
@@ -332,5 +338,39 @@ function ResultView({ r }: { r: Result }) {
         </div>
       ) : null}
     </>
+  );
+}
+
+const host = (u?: string) => { try { return u ? new URL(u).hostname.replace(/^www\./, "") : ""; } catch { return ""; } };
+const Src = ({ u }: { u?: string }) => (u && /^https?:/.test(u) ? <> <a href={u} target="_blank" rel="noreferrer" className="note">[{host(u)}]</a></> : null);
+
+function WebView({ web, info }: { web: Web | null; info: WebInfo | null }) {
+  return (
+    <div className="panel">
+      <div className="actions" style={{ justifyContent: "space-between" }}>
+        <h2 style={{ margin: 0 }}>Найдено в интернете</h2>
+        {info ? <span className="note mono">{info.searches} поисков · ${Number(info.costUsd || 0).toFixed(3)}{info.model ? " · " + info.model : ""}</span> : null}
+      </div>
+      {info?.error ? <div className="alert" style={{ marginTop: 10 }}>Поиск не удался: {info.error}</div> : null}
+      {web ? (
+        <div className="out" style={{ marginTop: 12 }}>
+          {web.identity ? <section><h3>Кто это</h3><p style={{ margin: 0 }}>{web.identity}</p></section> : null}
+          {arr(web.sanctions_mentions).length ? <section><h3>Упоминания санкций</h3><ul className="plain">{web.sanctions_mentions.map((x, i) => <li key={i}><b>{x.name}</b> — {x.context}<Src u={x.url} /></li>)}</ul></section> : null}
+          {arr(web.people).length ? <section><h3>Люди</h3><ul className="plain">{web.people.map((p, i) => <li key={i}><b>{p.name}</b> <span className="note">{[p.role, p.share, p.nationality].filter(Boolean).join(" · ")}</span><Src u={p.source} /></li>)}</ul></section> : null}
+          {arr(web.links).length ? <section><h3>Их другие компании</h3><ul className="plain">{web.links.map((l, i) => <li key={i}><b>{l.person}</b> → {l.company} <span className="note">{[l.company_country, l.role, l.share, l.activity].filter(Boolean).join(" · ")}</span><Src u={l.source} /></li>)}</ul></section> : null}
+          {arr(web.adverse).length ? (
+            <section><h3>Новости и упоминания</h3>
+              <div className="items">{web.adverse.map((a, i) => (
+                <div className="item" key={i}><span className="item-title">{a.title}{a.date ? <span className="note"> · {a.date}</span> : null}</span>
+                  <p style={{ margin: 0, fontSize: ".92rem" }}>{a.summary}<Src u={a.url} /></p></div>))}</div>
+            </section>) : <section><h3>Новости и упоминания</h3><p className="note" style={{ margin: 0 }}>Негативных упоминаний не найдено.</p></section>}
+          {arr(web.not_found).length ? <section><h3>Не удалось найти</h3><ul className="plain">{web.not_found.map((x, i) => <li key={i}>{x}</li>)}</ul></section> : null}
+        </div>
+      ) : null}
+      {arr(info?.sources).length ? (
+        <details style={{ marginTop: 10 }}><summary className="note" style={{ cursor: "pointer" }}>Все источники ({info!.sources.length})</summary>
+          <ul className="plain" style={{ marginTop: 6 }}>{info!.sources.map((s, i) => <li key={i}><a href={s.url} target="_blank" rel="noreferrer">{s.title || s.url}</a> <span className="note">{host(s.url)}</span></li>)}</ul></details>
+      ) : null}
+    </div>
   );
 }

@@ -53,6 +53,12 @@ async function demoAnswer(prompt: string): Promise<CallResult> {
         { name: "ДЕМО Ivars Kalniņš", kind: "person", role: "director", nationality: "LV" }],
       links: [{ person: "ДЕМО Ivars Kalniņš", company: "ООО ДЕМО-Строй", company_country: "RU", role: "director", share: "", activity: "41.20 строительство" }],
       goods: ["станки ЧПУ"], trade_countries: ["Kazakhstan"], partner_registered: "2023-05-10" };
+  } else if (prompt.startsWith("TASK:WEB_RESEARCH")) {
+    data = { identity: "ДЕМО: компания найдена в открытых источниках (демо-ответ без ИИ и без поиска).", country: "LV",
+      people: [{ name: "ДЕМО Петров Иван", role: "owner", share: "100%", nationality: "RU", residence: "", source: "https://example.com/demo" }],
+      links: [{ person: "ДЕМО Петров Иван", company: "ООО ДЕМО-Транс", company_country: "RU", role: "director", share: "", activity: "49.41 грузоперевозки", source: "https://example.com/demo" }],
+      adverse: [{ title: "ДЕМО-статья", summary: "Здесь будет краткое содержание найденной новости.", url: "https://example.com/demo", date: "2025-01-01" }],
+      sanctions_mentions: [], goods: [], trade_countries: [], registered: "", not_found: [] };
   } else if (prompt.startsWith("TASK:PARTNER_REPORT")) {
     data = { summary: "Это демо-отчёт без ИИ: он показывает, как выглядит результат. Совпадения и данные реестра ниже — настоящие.", risk_level: "medium", recommendation: "need_more_info",
       sanctions_matches: [], ownership: "ДЕМО: структура владения", findings: [{ title: "ДЕМО: находка", explanation: "Здесь будет объяснение.", legal_basis: "Рег. 269/2014", severity: "medium" }],
@@ -140,4 +146,38 @@ export async function listModels(provider: ProviderId, apiKey: string): Promise<
     }
     return info;
   }).filter(m => m.id).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// Claude with Anthropic's built-in web search (server tool). Claude decides what to search, reads the results
+// and answers; we only pass the prompt. Price: $10 per 1000 searches + tokens.
+export type SearchResult = CallResult & { searches: number; sources: { url: string; title: string }[] };
+
+export async function callAnthropicSearch(apiKey: string, model: string, prompt: string, maxUses: number, maxTokens = 6000): Promise<SearchResult> {
+  if (!apiKey) throw new Error("Нет ключа Anthropic (ANTHROPIC_API_KEY).");
+  type Block = { type: string; text?: string; content?: unknown; citations?: { url?: string; title?: string }[] };
+  const messages: { role: string; content: unknown }[] = [{ role: "user", content: prompt }];
+  let text = "", tokensIn = 0, tokensOut = 0, searches = 0, truncated = false;
+  const sources = new Map<string, string>();
+  for (let round = 0; round < 4; round++) {
+    const res = await net("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages, tools: [{ type: "web_search_20250305", name: "web_search", max_uses: maxUses }] }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) throw await asError(res);
+    const j = await res.json();
+    tokensIn += j.usage?.input_tokens ?? 0; tokensOut += j.usage?.output_tokens ?? 0;
+    searches += j.usage?.server_tool_use?.web_search_requests ?? 0;
+    const content: Block[] = j.content || [];
+    for (const b of content) {
+      if (b.type === "text") { text += b.text || ""; for (const c of b.citations || []) if (c.url) sources.set(c.url, c.title || c.url); }
+      if (b.type === "web_search_tool_result" && Array.isArray(b.content))
+        for (const r of b.content as { url?: string; title?: string }[]) if (r.url && !sources.has(r.url)) sources.set(r.url, r.title || r.url);
+    }
+    if (j.stop_reason === "pause_turn") { messages.push({ role: "assistant", content }); continue; }
+    truncated = j.stop_reason === "max_tokens";
+    break;
+  }
+  return { text, tokensIn, tokensOut, truncated, searches, sources: [...sources].map(([url, title]) => ({ url, title })) };
 }

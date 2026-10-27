@@ -4,12 +4,14 @@ import type { AnalysisV2 } from "@/lib/agents";
 
 type L = "ru" | "en" | "lv";
 const T: Record<L, Record<string, string>> = {
-  ru: { summary: "Коротко", risk: "Уровень риска", low: "низкий", medium: "средний", high: "высокий", findings: "Что важно", basis: "Основание", ownership: "Владение и контроль", docs: "Какие документы нужны", why: "Зачем", where: "Где взять", actions: "Что сделать", q: "Вопросы к вам", reply: "Черновик ответа банку", copy: "Скопировать", copied: "Скопировано", open: "Что пока неясно" , build: "Ответьте на вопросы — и мы составим письмо банку", answerPh: "Ваш ответ (можно коротко)", make: "Составить ответ банку", making: "Составляю письмо…", remake: "Составить заново", notes: "Что дописать или приложить" },
-  en: { summary: "Summary", risk: "Risk level", low: "low", medium: "medium", high: "high", findings: "What matters", basis: "Basis", ownership: "Ownership and control", docs: "Documents needed", why: "Why", where: "Where to get it", actions: "What to do", q: "Questions for you", reply: "Draft reply to the bank", copy: "Copy", copied: "Copied", open: "Still unclear" , build: "Answer the questions and we will draft the letter to the bank", answerPh: "Your answer (short is fine)", make: "Draft the reply to the bank", making: "Drafting…", remake: "Draft again", notes: "What to fill in or attach" },
-  lv: { summary: "Īsumā", risk: "Riska līmenis", low: "zems", medium: "vidējs", high: "augsts", findings: "Kas svarīgs", basis: "Pamatojums", ownership: "Īpašumtiesības un kontrole", docs: "Nepieciešamie dokumenti", why: "Kāpēc", where: "Kur iegūt", actions: "Kas jādara", q: "Jautājumi jums", reply: "Atbildes melnraksts bankai", copy: "Kopēt", copied: "Nokopēts", open: "Vēl neskaidrs" , build: "Atbildiet uz jautājumiem, un mēs sagatavosim vēstuli bankai", answerPh: "Jūsu atbilde (var īsi)", make: "Sagatavot atbildi bankai", making: "Gatavoju…", remake: "Sagatavot vēlreiz", notes: "Ko papildināt vai pievienot" },
+  ru: { summary: "Коротко", risk: "Уровень риска", low: "низкий", medium: "средний", high: "высокий", findings: "Что важно", basis: "Основание", ownership: "Владение и контроль", docs: "Какие документы нужны", why: "Зачем", where: "Где взять", actions: "Что сделать", q: "Вопросы к вам", reply: "Черновик ответа банку", copy: "Скопировать", copied: "Скопировано", open: "Что пока неясно" , build: "Ответьте на вопросы — и мы составим письмо банку", answerPh: "Ваш ответ (можно коротко)", make: "Составить ответ банку", making: "Составляю письмо…", remake: "Составить заново", notes: "Что дописать или приложить" , dunno: "Не знаю" },
+  en: { summary: "Summary", risk: "Risk level", low: "low", medium: "medium", high: "high", findings: "What matters", basis: "Basis", ownership: "Ownership and control", docs: "Documents needed", why: "Why", where: "Where to get it", actions: "What to do", q: "Questions for you", reply: "Draft reply to the bank", copy: "Copy", copied: "Copied", open: "Still unclear" , build: "Answer the questions and we will draft the letter to the bank", answerPh: "Your answer (short is fine)", make: "Draft the reply to the bank", making: "Drafting…", remake: "Draft again", notes: "What to fill in or attach" , dunno: "I don't know" },
+  lv: { summary: "Īsumā", risk: "Riska līmenis", low: "zems", medium: "vidējs", high: "augsts", findings: "Kas svarīgs", basis: "Pamatojums", ownership: "Īpašumtiesības un kontrole", docs: "Nepieciešamie dokumenti", why: "Kāpēc", where: "Kur iegūt", actions: "Kas jādara", q: "Jautājumi jums", reply: "Atbildes melnraksts bankai", copy: "Kopēt", copied: "Nokopēts", open: "Vēl neskaidrs" , build: "Atbildiet uz jautājumiem, un mēs sagatavosim vēstuli bankai", answerPh: "Jūsu atbilde (var īsi)", make: "Sagatavot atbildi bankai", making: "Gatavoju…", remake: "Sagatavot vēlreiz", notes: "Ko papildināt vai pievienot" , dunno: "Nezinu" },
 };
 const arr = <X,>(v: X[] | undefined | null) => (Array.isArray(v) ? v : []);
 const sev = (s: string) => (s === "high" ? "bad" : s === "medium" ? "warn" : "ok");
+
+const DUNNO = "__dunno__";
 
 export type ReplyCtx = { facts: string; question: string };
 
@@ -27,7 +29,7 @@ export default function AnalysisView({ data, lang = "ru", ctx }: { data: Analysi
     if (!ctx) return;
     setDrafting(true); setDraftErr("");
     const r = await (await fetch("/api/reply", { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ facts: ctx.facts, question: ctx.question, analysis: { ...data, reply_to_bank: undefined }, answers: qs.map((q, i) => ({ q, a: answers[i] || "" })), lang }) })).json().catch(e => ({ ok: false, error: String(e) }));
+      body: JSON.stringify({ facts: ctx.facts, question: ctx.question, analysis: { ...data, reply_to_bank: undefined }, answers: qs.map((q, i) => ({ q, a: answers[i] === DUNNO ? "Клиент не знает (I don't know)" : answers[i] || "" })), lang }) })).json().catch(e => ({ ok: false, error: String(e) }));
     setDrafting(false);
     if (r.ok && r.data) { setReply(r.data.reply_to_bank); setNotes(arr(r.data.notes)); } else setDraftErr(r.error || "Ошибка");
   }
@@ -73,7 +75,8 @@ export default function AnalysisView({ data, lang = "ru", ctx }: { data: Analysi
           {qs.map((x, i) => (
             <div className="field" key={i}>
               <label htmlFor={"ans" + i}>{x}</label>
-              <textarea id={"ans" + i} style={{ minHeight: 56 }} placeholder={t.answerPh} value={answers[i] || ""} onChange={e => setAnswers(a => { const n = [...a]; n[i] = e.target.value; return n; })} />
+              <textarea id={"ans" + i} style={{ minHeight: 56 }} placeholder={t.answerPh} disabled={answers[i] === DUNNO} value={answers[i] === DUNNO ? "" : answers[i] || ""} onChange={e => setAnswers(a => { const n = [...a]; n[i] = e.target.value; return n; })} />
+              <label className="checkrow" style={{ marginTop: 4 }}><input type="checkbox" checked={answers[i] === DUNNO} onChange={e => setAnswers(a => { const n = [...a]; n[i] = e.target.checked ? DUNNO : ""; return n; })} /> <span className="note">{t.dunno}</span></label>
             </div>
           ))}
           <div className="actions">

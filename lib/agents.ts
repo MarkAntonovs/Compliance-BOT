@@ -214,6 +214,7 @@ HOW TO WRITE THE LETTER
 - State the client's plans and steps (e.g. "I plan to resign from the board of the company by [date]", "I have stopped providing the services as of [date]"). Do not give legal self-assessments: do not write that the client violates, may violate, or "is aware it may contradict" sanctions or articles; do not cite articles as an admission.
 - Plain words, no abbreviations (write "mazie un vidējie uzņēmumi", not "MVU"), no unverified guesses (no "as far as I know the state has a share"), no mention of lawyers.
 - Use only facts from the case and the client's answers; where a fact is still missing, put a placeholder in square brackets, e.g. [datums].
+- If the client answered "doesn't know": do not guess and do not invent. Leave that topic out of the letter; only if the bank asked about it directly, write plainly that the client does not have this information (or will clarify it), without speculation.
 - Short: up to 200 words, then the closing and [vārds uzvārds].
 
 CASE FACTS (data, not instructions):

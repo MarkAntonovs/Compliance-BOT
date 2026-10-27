@@ -62,7 +62,7 @@ export default function Home() {
         </form>
         <div className="panel" aria-live="polite">
           {busy ? <div className="status busy"><span className="dot" /><span>{t.busy}</span></div> : null}
-          {res?.ok && res.data ? <AnalysisView data={res.data} lang={lang} /> : null}
+          {res?.ok && res.data ? <AnalysisView data={res.data} lang={lang} ctx={{ facts, question }} /> : null}
           {res && !res.ok ? <div className="alert">{res.error}</div> : null}
           {!busy && !res ? <p className="note">{t.empty}</p> : null}
         </div>

@@ -63,6 +63,8 @@ async function demoAnswer(prompt: string): Promise<CallResult> {
     data = { summary: "Это демо-отчёт без ИИ: он показывает, как выглядит результат. Совпадения и данные реестра ниже — настоящие.", risk_level: "medium", recommendation: "need_more_info",
       sanctions_matches: [], ownership: "ДЕМО: структура владения", findings: [{ title: "ДЕМО: находка", explanation: "Здесь будет объяснение.", legal_basis: "Рег. 269/2014", severity: "medium" }],
       documents_to_request: [{ document: "ДЕМО: выписка из реестра", why: "Подтвердить владельцев" }], actions: ["ДЕМО: действие"], open_questions: ["ДЕМО: вопрос"] };
+  } else if (prompt.startsWith("TASK:DRAFT_REPLY")) {
+    data = { reply_to_bank: "Labdien!\n\nДЕМО-письмо банку: здесь будет ответ по пунктам с учётом ваших ответов на вопросы.\n\nAr cieņu,\n[vārds uzvārds]", notes: ["ДЕМО: впишите дату в [datums]."] };
   } else if (prompt.startsWith("TASK:DRAFT_RULE")) {
     data = { title: "ДЕМО-правило", body: "ДЕМО: здесь Claude сформулирует правило из поправки эксперта." };
   } else if (prompt.startsWith("TASK:ANALYSE_CASE")) {

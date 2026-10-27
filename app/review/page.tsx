@@ -135,7 +135,7 @@ function ReviewDesk() {
                 </div>
               </div>
               {a ? <p className="note">{a.model} · инструкция {a.prompt_version} · правил применено: {a.rule_ids.length} · {(a.latency_ms / 1000).toFixed(0)} с · ${Number(a.cost_usd).toFixed(3)}</p> : null}
-              {a?.output ? <AnalysisView data={a.output} lang="ru" /> : a ? <div className="alert">{a.error}{a.raw ? <pre className="raw">{a.raw}</pre> : null}</div> : <p className="note">Разбора ещё нет. Нажмите «Прогнать заново».</p>}
+              {a?.output ? <AnalysisView data={a.output} lang="ru" ctx={{ facts: d.case.data.facts, question: d.case.data.question }} /> : a ? <div className="alert">{a.error}{a.raw ? <pre className="raw">{a.raw}</pre> : null}</div> : <p className="note">Разбора ещё нет. Нажмите «Прогнать заново».</p>}
             </div>
 
             {a ? (
